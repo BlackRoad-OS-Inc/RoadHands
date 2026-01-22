@@ -1,4 +1,5 @@
 import { delay, http, HttpResponse } from "msw";
+
 type MockSubscriptionAccess = {
   start_at: string;
   end_at: string;
@@ -6,7 +7,6 @@ type MockSubscriptionAccess = {
   cancelled_at: string | null;
   stripe_subscription_id: string | null;
 };
-
 
 // Mock data for different subscription scenarios
 const MOCK_ACTIVE_SUBSCRIPTION = {
@@ -17,7 +17,7 @@ const MOCK_ACTIVE_SUBSCRIPTION = {
   stripe_subscription_id: "sub_mock123456789",
 };
 
-const MOCK_CANCELLED_SUBSCRIPTION= {
+const MOCK_CANCELLED_SUBSCRIPTION = {
   start_at: "2024-01-01T00:00:00Z",
   end_at: "2025-01-01T23:59:59Z",
   created_at: "2024-01-01T00:00:00Z",
@@ -38,7 +38,6 @@ const MOCK_EXPIRED_SUBSCRIPTION = {
 function isSubscriptionActive(
   subscription: MockSubscriptionAccess | null,
 ): boolean {
-
   if (!subscription) return false;
 
   const now = new Date();
@@ -53,7 +52,6 @@ function isSubscriptionActive(
 function createBillingHandlers(
   subscriptionData: MockSubscriptionAccess | null,
 ) {
-
   return [
     http.get("/api/billing/credits", async () => {
       await delay();
