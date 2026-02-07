@@ -19,7 +19,7 @@ export function useSettingsNavItems() {
     items = items.filter((item) => item.to !== "/settings");
   }
 
-  // Hide billing for team orgs or when HIDE_BILLING flag is set
+  // Hide billing for team orgs or when enable_billing flag is set
   if (shouldHideBilling || isTeamOrg) {
     items = items.filter((item) => item.to !== "/settings/billing");
   }
