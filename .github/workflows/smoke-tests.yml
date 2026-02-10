@@ -1,0 +1,195 @@
+name: Smoke Tests
+
+on:
+  # Run on pushes to main
+  push:
+    branches: [main]
+
+  # Run on pull requests
+  pull_request:
+    branches: [main]
+
+  # Scheduled runs (every 6 hours)
+  schedule:
+    - cron: '0 */6 * * *'
+
+  # Manual trigger with environment selection
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      base_url:
+        description: 'Custom base URL (overrides environment selection)'
+        required: false
+        type: string
+
+# Cancel previous runs on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  smoke-tests:
+    name: Smoke Tests (${{ github.event.inputs.environment || 'staging' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: integration_tests/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./integration_tests
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./integration_tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Determine base URL
+        id: base-url
+        run: |
+          if [ -n "${{ github.event.inputs.base_url }}" ]; then
+            echo "url=${{ github.event.inputs.base_url }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event.inputs.environment }}" = "production" ]; then
+            echo "url=https://app.all-hands.dev" >> $GITHUB_OUTPUT
+          else
+            echo "url=https://staging.all-hands.dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run smoke tests
+        working-directory: ./integration_tests
+        env:
+          BASE_URL: ${{ steps.base-url.outputs.url }}
+          AUTH_METHOD: github
+          GITHUB_TEST_USERNAME: ${{ secrets.SMOKE_TEST_GITHUB_USERNAME }}
+          GITHUB_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_GITHUB_PASSWORD }}
+          GITHUB_TEST_TOTP_SECRET: ${{ secrets.SMOKE_TEST_GITHUB_TOTP_SECRET }}
+          TEST_REPO_URL: ${{ secrets.SMOKE_TEST_REPO_URL || 'https://github.com/OpenHands/deploy' }}
+          CI: true
+        run: npm test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: integration_tests/playwright-report/
+          retention-days: 30
+
+      - name: Upload test artifacts
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ github.run_id }}
+          path: |
+            integration_tests/test-results/
+            integration_tests/playwright-report/
+          retention-days: 14
+
+  # Notify on failure (optional - configure Slack/Discord webhook)
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: smoke-tests
+    if: failure() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send notification
+        run: |
+          echo "Smoke tests failed on main branch!"
+          echo "View results: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          # Add Slack/Discord notification here if needed
+          # Example with curl to Slack webhook:
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"🚨 Smoke tests failed on main! <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Results>"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # Feature branch smoke tests (triggered by comment)
+  feature-branch-test:
+    name: Feature Branch Smoke Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'smoke-test')
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: integration_tests/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ./integration_tests
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: ./integration_tests
+        run: npx playwright install --with-deps chromium
+
+      - name: Extract branch name for URL
+        id: branch
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          # Sanitize branch name for URL (replace special chars)
+          SANITIZED=$(echo "$BRANCH_NAME" | sed 's/[^a-zA-Z0-9-]/-/g' | tr '[:upper:]' '[:lower:]')
+          echo "name=$SANITIZED" >> $GITHUB_OUTPUT
+
+      - name: Run smoke tests against feature branch
+        working-directory: ./integration_tests
+        env:
+          BASE_URL: https://${{ steps.branch.outputs.name }}.staging.all-hands.dev
+          AUTH_METHOD: github
+          GITHUB_TEST_USERNAME: ${{ secrets.SMOKE_TEST_GITHUB_USERNAME }}
+          GITHUB_TEST_PASSWORD: ${{ secrets.SMOKE_TEST_GITHUB_PASSWORD }}
+          CI: true
+        run: npm test
+        continue-on-error: true
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feature-branch-report-${{ github.run_id }}
+          path: integration_tests/playwright-report/
+          retention-days: 7
+
+      - name: Comment on PR with results
+        uses: actions/github-script@v7
+        if: always()
+        with:
+          script: |
+            const fs = require('fs');
+            const outcome = '${{ job.status }}';
+            const branchUrl = 'https://${{ steps.branch.outputs.name }}.staging.all-hands.dev';
+
+            const body = outcome === 'success'
+              ? `✅ **Smoke tests passed** against [${branchUrl}](${branchUrl})`
+              : `❌ **Smoke tests failed** against [${branchUrl}](${branchUrl})\n\nView the [test report](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}) for details.`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
