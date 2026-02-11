@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import zipfile
 from datetime import datetime
 from unittest.mock import AsyncMock, Mock, patch
@@ -37,6 +38,23 @@ from openhands.sdk.secret import LookupSecret, StaticSecret
 from openhands.sdk.workspace import LocalWorkspace
 from openhands.sdk.workspace.remote.async_remote_workspace import AsyncRemoteWorkspace
 from openhands.server.types import AppMode
+
+# Env var used by openhands SDK LLM to skip context-window validation (e.g. for gpt-4 in tests)
+_ALLOW_SHORT_CONTEXT_WINDOWS = 'ALLOW_SHORT_CONTEXT_WINDOWS'
+
+
+@pytest.fixture(autouse=True)
+def allow_short_context_windows():
+    """Allow small context windows so unit tests can create LLM with gpt-4 etc."""
+    old = os.environ.pop(_ALLOW_SHORT_CONTEXT_WINDOWS, None)
+    os.environ[_ALLOW_SHORT_CONTEXT_WINDOWS] = 'true'
+    try:
+        yield
+    finally:
+        if old is not None:
+            os.environ[_ALLOW_SHORT_CONTEXT_WINDOWS] = old
+        else:
+            os.environ.pop(_ALLOW_SHORT_CONTEXT_WINDOWS, None)
 
 
 class TestLiveStatusAppConversationService:
@@ -682,6 +700,41 @@ class TestLiveStatusAppConversationService:
             == 'https://mcp.tavily.com/mcp/?tavilyApiKey=env_tavily_key'
         )
 
+    def test_compute_plan_path_default_uses_agents_tmp(self):
+        """Test _compute_plan_path returns .agents_tmp/PLAN.md for default/GitHub."""
+        # Arrange
+        working_dir = '/workspace/project'
+
+        # Act
+        path_none = self.service._compute_plan_path(working_dir, None)
+        path_github = self.service._compute_plan_path(working_dir, ProviderType.GITHUB)
+
+        # Assert
+        assert path_none == '/workspace/project/.agents_tmp/PLAN.md'
+        assert path_github == '/workspace/project/.agents_tmp/PLAN.md'
+
+    def test_compute_plan_path_gitlab_uses_agents_tmp_config(self):
+        """Test _compute_plan_path returns agents-tmp-config/PLAN.md for GitLab."""
+        # Arrange
+        working_dir = '/workspace/project'
+
+        # Act
+        path = self.service._compute_plan_path(working_dir, ProviderType.GITLAB)
+
+        # Assert
+        assert path == '/workspace/project/agents-tmp-config/PLAN.md'
+
+    def test_compute_plan_path_azure_uses_agents_tmp_config(self):
+        """Test _compute_plan_path returns agents-tmp-config/PLAN.md for Azure."""
+        # Arrange
+        working_dir = '/workspace/project'
+
+        # Act
+        path = self.service._compute_plan_path(working_dir, ProviderType.AZURE_DEVOPS)
+
+        # Assert
+        assert path == '/workspace/project/agents-tmp-config/PLAN.md'
+
     @patch(
         'openhands.app_server.app_conversation.live_status_app_conversation_service.get_planning_tools'
     )
@@ -704,6 +757,8 @@ class TestLiveStatusAppConversationService:
         mock_format_plan.return_value = 'test_plan_structure'
         mcp_config = {'default': {'url': 'test'}}
         system_message_suffix = 'Test suffix'
+        working_dir = '/workspace/project'
+        git_provider = ProviderType.GITHUB
 
         # Act
         with patch(
@@ -719,9 +774,14 @@ class TestLiveStatusAppConversationService:
                 system_message_suffix,
                 mcp_config,
                 self.mock_user.condenser_max_size,
+                git_provider=git_provider,
+                working_dir=working_dir,
             )
 
             # Assert
+            mock_get_tools.assert_called_once_with(
+                plan_path='/workspace/project/.agents_tmp/PLAN.md'
+            )
             mock_agent_class.assert_called_once()
             call_kwargs = mock_agent_class.call_args[1]
             assert call_kwargs['llm'] == mock_llm
@@ -1006,6 +1066,8 @@ class TestLiveStatusAppConversationService:
             mock_mcp_config,
             self.mock_user.condenser_max_size,
             secrets=mock_secrets,
+            git_provider=ProviderType.GITHUB,
+            working_dir='/test/dir',
         )
         self.service._finalize_conversation_request.assert_called_once()
 
