@@ -6,6 +6,7 @@ import json
 import os
 from base64 import b64decode, b64encode
 from dataclasses import dataclass
+from typing import Any
 
 import httpx
 from cryptography.fernet import Fernet
@@ -233,6 +234,7 @@ class SaasSettingsStore(SettingsStore):
                     f'{LITE_LLM_API_URL}/user/info?user_id={self.user_id}'
                 )
                 # 404 means user doesn't exist yet, treat same as empty user_info
+                user_info: dict[str, Any]
                 if response.status_code == 404:
                     user_info = {}
                 else:
