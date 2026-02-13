@@ -205,8 +205,16 @@ class SlackNewConversationView(SlackViewInterface):
             )
             await slack_conversation_store.create_slack_conversation(slack_conversation)
 
-    def _create_slack_v1_callback_processor(self) -> SlackV1CallbackProcessor:
-        """Create a SlackV1CallbackProcessor for V1 conversation handling."""
+    def _create_slack_v1_callback_processor(
+        self, message_content: str
+    ) -> SlackV1CallbackProcessor:
+        """Create a SlackV1CallbackProcessor for V1 conversation handling.
+
+        Args:
+            message_content: The content of the message being sent from Slack,
+                            used for privacy tracking (to know if responses should
+                            be sent back to Slack).
+        """
         return SlackV1CallbackProcessor(
             slack_view_data={
                 'channel_id': self.channel_id,
@@ -214,6 +222,7 @@ class SlackNewConversationView(SlackViewInterface):
                 'thread_ts': self.thread_ts,
                 'team_id': self.team_id,
                 'slack_user_id': self.slack_user_id,
+                'last_slack_message_content': message_content,
             }
         )
 
@@ -280,8 +289,11 @@ class SlackNewConversationView(SlackViewInterface):
             role='user', content=[TextContent(text=user_instructions)]
         )
 
-        # Create the Slack V1 callback processor
-        slack_callback_processor = self._create_slack_v1_callback_processor()
+        # Create the Slack V1 callback processor with the initial message content
+        # for privacy tracking (so we only respond to Slack when message came from Slack)
+        slack_callback_processor = self._create_slack_v1_callback_processor(
+            user_instructions
+        )
 
         # Determine git provider from repository
         git_provider = None
@@ -410,9 +422,14 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
     async def send_message_to_v1_conversation(self, jinja: Environment):
         """Send a message to a v1 conversation using the agent server API."""
         # Import services within the method to avoid circular imports
+        from integrations.slack.slack_v1_callback_processor import (
+            SlackV1CallbackProcessor,
+        )
+
         from openhands.agent_server.models import SendMessageRequest
         from openhands.app_server.config import (
             get_app_conversation_info_service,
+            get_event_callback_service,
             get_httpx_client,
             get_sandbox_service,
         )
@@ -429,6 +446,27 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
         # Create injector state for dependency injection
         state = InjectorState()
         setattr(state, USER_CONTEXT_ATTR, ADMIN)
+
+        # Get the message content before sending
+        user_msg, _ = self._get_instructions(jinja)
+
+        # Update the Slack V1 callback processor with the new message content
+        # (for privacy: so we only respond to Slack when message came from Slack)
+        async with get_event_callback_service(state) as event_callback_service:
+            callbacks = await event_callback_service.search_event_callbacks(
+                conversation_id__eq=UUID(self.conversation_id)
+            )
+            for callback in callbacks.items:
+                if isinstance(callback.processor, SlackV1CallbackProcessor):
+                    callback.processor.slack_view_data[
+                        'last_slack_message_content'
+                    ] = user_msg
+                    await event_callback_service.save_event_callback(callback)
+                    logger.info(
+                        '[Slack V1] Updated callback with new message content for conversation %s',
+                        self.conversation_id,
+                    )
+                    break
 
         async with (
             get_app_conversation_info_service(state) as app_conversation_info_service,
@@ -468,15 +506,12 @@ class SlackUpdateExistingConversationView(SlackNewConversationView):
             # 3. Get the agent server URL
             agent_server_url = get_agent_server_url_from_sandbox(running_sandbox)
 
-            # 4. Prepare the message content
-            user_msg, _ = self._get_instructions(jinja)
-
-            # 5. Create the message request
+            # 4. Create the message request
             send_message_request = SendMessageRequest(
                 role='user', content=[TextContent(text=user_msg)], run=True
             )
 
-            # 6. Send the message to the agent server
+            # 5. Send the message to the agent server
             url = f'{agent_server_url.rstrip("/")}/api/conversations/{UUID(self.conversation_id)}/events'
 
             headers = {'X-Session-API-Key': running_sandbox.session_api_key}

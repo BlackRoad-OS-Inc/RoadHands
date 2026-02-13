@@ -429,3 +429,181 @@ class TestSlackV1CallbackProcessor:
         assert result is not None
         assert result.status == EventCallbackResultStatus.ERROR
         assert expected_error_fragment in result.detail
+
+    # -------------------------------------------------------------------------
+    # Privacy feature tests
+    # -------------------------------------------------------------------------
+
+    @patch('storage.slack_team_store.SlackTeamStore.get_instance')
+    @patch.object(SlackV1CallbackProcessor, '_request_summary')
+    @patch.object(SlackV1CallbackProcessor, '_get_last_user_message')
+    async def test_skips_response_when_message_not_from_slack(
+        self,
+        mock_get_last_user_message,
+        mock_request_summary,
+        mock_slack_team_store,
+        finish_event,
+        event_callback,
+    ):
+        """Test that callback skips sending to Slack when last message didn't come from Slack.
+
+        This is a privacy feature: if user continues conversation via Web UI,
+        responses should NOT be sent back to Slack.
+        """
+        # Create processor with message tracking enabled
+        processor = SlackV1CallbackProcessor(
+            slack_view_data={
+                'channel_id': 'C1234567890',
+                'message_ts': '1234567890.123456',
+                'team_id': 'T1234567890',
+                'last_slack_message_content': 'Message sent from Slack',
+            }
+        )
+
+        # Mock last user message being different (from Web UI)
+        mock_get_last_user_message.return_value = 'Message sent from Web UI'
+
+        # Execute
+        result = await processor(uuid4(), event_callback, finish_event)
+
+        # Verify callback was skipped
+        assert result is not None
+        assert result.status == EventCallbackResultStatus.SUCCESS
+        assert 'Skipped: last message not from Slack' in result.detail
+
+        # Verify summary was NOT requested
+        mock_request_summary.assert_not_called()
+
+    @patch('storage.slack_team_store.SlackTeamStore.get_instance')
+    @patch('integrations.slack.slack_v1_callback_processor.WebClient')
+    @patch.object(SlackV1CallbackProcessor, '_request_summary')
+    @patch.object(SlackV1CallbackProcessor, '_get_last_user_message')
+    async def test_sends_response_when_message_from_slack(
+        self,
+        mock_get_last_user_message,
+        mock_request_summary,
+        mock_web_client,
+        mock_slack_team_store,
+        finish_event,
+        event_callback,
+    ):
+        """Test that callback sends to Slack when last message came from Slack."""
+        slack_message = 'Message sent from Slack'
+
+        # Create processor with message tracking enabled
+        processor = SlackV1CallbackProcessor(
+            slack_view_data={
+                'channel_id': 'C1234567890',
+                'message_ts': '1234567890.123456',
+                'team_id': 'T1234567890',
+                'last_slack_message_content': slack_message,
+            }
+        )
+
+        # Mock SlackTeamStore
+        mock_store = MagicMock()
+        mock_store.get_team_bot_token.return_value = 'xoxb-test-token'
+        mock_slack_team_store.return_value = mock_store
+
+        # Mock last user message matching Slack message
+        mock_get_last_user_message.return_value = slack_message
+
+        # Mock successful summary
+        mock_request_summary.return_value = 'Summary from agent'
+
+        # Mock Slack WebClient
+        mock_slack_client = MagicMock()
+        mock_slack_client.chat_postMessage.return_value = {'ok': True}
+        mock_web_client.return_value = mock_slack_client
+
+        # Execute
+        result = await processor(uuid4(), event_callback, finish_event)
+
+        # Verify callback succeeded and sent to Slack
+        assert result is not None
+        assert result.status == EventCallbackResultStatus.SUCCESS
+        assert result.detail == 'Summary from agent'
+
+        # Verify summary was requested and sent to Slack
+        mock_request_summary.assert_called_once()
+        mock_slack_client.chat_postMessage.assert_called_once()
+
+    @patch('storage.slack_team_store.SlackTeamStore.get_instance')
+    @patch('integrations.slack.slack_v1_callback_processor.WebClient')
+    @patch.object(SlackV1CallbackProcessor, '_request_summary')
+    @patch.object(SlackV1CallbackProcessor, '_get_last_user_message')
+    async def test_backward_compatibility_when_no_tracking(
+        self,
+        mock_get_last_user_message,
+        mock_request_summary,
+        mock_web_client,
+        mock_slack_team_store,
+        finish_event,
+        event_callback,
+    ):
+        """Test backward compatibility: when last_slack_message_content is not set,
+        responses should still be sent to Slack (old behavior).
+        """
+        # Create processor WITHOUT message tracking (backward compatibility)
+        processor = SlackV1CallbackProcessor(
+            slack_view_data={
+                'channel_id': 'C1234567890',
+                'message_ts': '1234567890.123456',
+                'team_id': 'T1234567890',
+                # No 'last_slack_message_content' key
+            }
+        )
+
+        # Mock SlackTeamStore
+        mock_store = MagicMock()
+        mock_store.get_team_bot_token.return_value = 'xoxb-test-token'
+        mock_slack_team_store.return_value = mock_store
+
+        # Mock successful summary
+        mock_request_summary.return_value = 'Summary from agent'
+
+        # Mock Slack WebClient
+        mock_slack_client = MagicMock()
+        mock_slack_client.chat_postMessage.return_value = {'ok': True}
+        mock_web_client.return_value = mock_slack_client
+
+        # Execute
+        result = await processor(uuid4(), event_callback, finish_event)
+
+        # Verify callback succeeded without checking message source
+        assert result is not None
+        assert result.status == EventCallbackResultStatus.SUCCESS
+        assert result.detail == 'Summary from agent'
+
+        # Verify _get_last_user_message was NOT called (because tracking is disabled)
+        mock_get_last_user_message.assert_not_called()
+
+        # Verify summary was requested and sent to Slack
+        mock_request_summary.assert_called_once()
+        mock_slack_client.chat_postMessage.assert_called_once()
+
+    def test_last_slack_message_content_serialization(self):
+        """Test that last_slack_message_content is properly stored in slack_view_data."""
+        message_content = 'Test message from Slack'
+        processor = SlackV1CallbackProcessor(
+            slack_view_data={
+                'channel_id': 'C1234567890',
+                'message_ts': '1234567890.123456',
+                'team_id': 'T1234567890',
+                'last_slack_message_content': message_content,
+            }
+        )
+
+        # Verify the content is stored
+        assert (
+            processor.slack_view_data.get('last_slack_message_content')
+            == message_content
+        )
+
+        # Verify serialization/deserialization
+        json_data = processor.model_dump_json()
+        restored = SlackV1CallbackProcessor.model_validate_json(json_data)
+        assert (
+            restored.slack_view_data.get('last_slack_message_content')
+            == message_content
+        )
