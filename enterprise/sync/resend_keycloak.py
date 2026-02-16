@@ -157,9 +157,7 @@ def _is_retryable_resend_error(exception: BaseException) -> bool:
                         )
                     return True
             except (ValueError, TypeError):
-                logger.warning(
-                    f'ResendError with non-integer code: {exception.code}'
-                )
+                logger.warning(f'ResendError with non-integer code: {exception.code}')
 
     # Check for connection/timeout errors (can be raised by underlying HTTP client)
     # Note: ConnectionError and TimeoutError are the specific network-related errors
