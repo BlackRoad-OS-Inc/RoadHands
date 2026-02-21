@@ -20,6 +20,7 @@ from integrations.v1_utils import get_saas_user_auth
 from jinja2 import Environment, FileSystemLoader
 from server.constants import SLACK_CLIENT_ID
 from server.utils.conversation_callback_utils import register_callback_processor
+from slack_sdk.errors import SlackApiError
 from slack_sdk.oauth import AuthorizeUrlGenerator
 from slack_sdk.web.async_client import AsyncWebClient
 from storage.database import session_maker
@@ -107,16 +108,17 @@ class SlackManager(Manager):
         self, channel_id: str, bot_access_token: str
     ) -> str | None:
         """Get the default repo from channel description if set."""
-        from slack_sdk.errors import SlackApiError
-
         try:
             client = AsyncWebClient(token=bot_access_token)
             result = await client.conversations_info(channel=channel_id)
             if result.get('ok') and result.get('channel'):
                 channel = result['channel']
                 # Check purpose (description) first, then topic
-                purpose = channel.get('purpose', {}).get('value', '')
-                topic = channel.get('topic', {}).get('value', '')
+                # Handle case where purpose/topic could be string instead of dict
+                purpose_dict = channel.get('purpose', {})
+                topic_dict = channel.get('topic', {})
+                purpose = purpose_dict.get('value', '') if isinstance(purpose_dict, dict) else ''
+                topic = topic_dict.get('value', '') if isinstance(topic_dict, dict) else ''
                 repo = self._parse_repo_from_channel_description(
                     purpose
                 ) or self._parse_repo_from_channel_description(topic)

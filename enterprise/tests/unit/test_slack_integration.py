@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from integrations.slack.slack_manager import SlackManager
+from slack_sdk.errors import SlackApiError
 
 
 @pytest.fixture
@@ -124,10 +125,28 @@ async def test_get_default_repo_from_channel_no_repo(slack_manager):
 
 
 @pytest.mark.asyncio
-async def test_get_default_repo_from_channel_api_error(slack_manager):
-    """Test handling of API errors."""
+async def test_get_default_repo_from_channel_slack_api_error(slack_manager):
+    """Test handling of SlackApiError specifically."""
     mock_client = MagicMock()
-    mock_client.conversations_info = AsyncMock(side_effect=Exception('API Error'))
+    mock_response = MagicMock()
+    mock_response.data = {'ok': False, 'error': 'channel_not_found'}
+    mock_client.conversations_info = AsyncMock(
+        side_effect=SlackApiError(message='API Error', response=mock_response)
+    )
+    with patch(
+        'integrations.slack.slack_manager.AsyncWebClient', return_value=mock_client
+    ):
+        result = await slack_manager._get_default_repo_from_channel(
+            'C12345', 'xoxb-token'
+        )
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_get_default_repo_from_channel_generic_error(slack_manager):
+    """Test handling of generic exceptions."""
+    mock_client = MagicMock()
+    mock_client.conversations_info = AsyncMock(side_effect=Exception('Unexpected error'))
     with patch(
         'integrations.slack.slack_manager.AsyncWebClient', return_value=mock_client
     ):
