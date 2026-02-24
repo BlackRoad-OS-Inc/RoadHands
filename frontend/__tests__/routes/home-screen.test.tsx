@@ -21,6 +21,7 @@ const { DEFAULT_FEATURE_FLAGS, useIsAuthedMock, useConfigMock } = vi.hoisted(
       enable_jira: false,
       enable_jira_dc: false,
       enable_linear: false,
+      enable_onboarding: false,
     };
 
     return {

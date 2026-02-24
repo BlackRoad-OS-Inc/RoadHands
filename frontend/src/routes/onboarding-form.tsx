@@ -17,8 +17,8 @@ export const clientLoader = async () => {
     queryFn: OptionService.getConfig,
   });
 
-  // Only allow SaaS users to access onboarding
-  if (config.app_mode !== "saas") {
+  // Only allow SaaS users to access onboarding when feature flag is enabled
+  if (config.app_mode !== "saas" || !config.feature_flags.enable_onboarding) {
     return redirect("/");
   }
 

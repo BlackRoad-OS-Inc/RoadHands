@@ -6,6 +6,7 @@ export interface WebClientFeatureFlags {
   enable_jira: boolean;
   enable_jira_dc: boolean;
   enable_linear: boolean;
+  enable_onboarding: boolean;
 }
 
 export interface WebClientConfig {

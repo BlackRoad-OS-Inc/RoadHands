@@ -1020,6 +1020,7 @@ describe("View persistence after saving advanced settings", () => {
         enable_jira: false,
         enable_jira_dc: false,
         enable_linear: false,
+        enable_onboarding: false,
       },
     });
 

@@ -78,6 +78,7 @@ export const SETTINGS_HANDLERS = [
         enable_jira: false,
         enable_jira_dc: false,
         enable_linear: false,
+        enable_onboarding: false,
       },
       providers_configured: [],
       maintenance_start_time: null,
