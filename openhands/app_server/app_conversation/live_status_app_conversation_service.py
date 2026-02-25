@@ -1252,12 +1252,12 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         sandbox = await self.sandbox_service.get_sandbox(
             app_conversation_info.sandbox_id
         )
-        assert sandbox is not None, (
-            f'Sandbox {app_conversation_info.sandbox_id} not found for conversation {conversation_id}'
-        )
-        assert sandbox.exposed_urls is not None, (
-            f'Sandbox {app_conversation_info.sandbox_id} has no exposed URLs for conversation {conversation_id}'
-        )
+        assert (
+            sandbox is not None
+        ), f'Sandbox {app_conversation_info.sandbox_id} not found for conversation {conversation_id}'
+        assert (
+            sandbox.exposed_urls is not None
+        ), f'Sandbox {app_conversation_info.sandbox_id} has no exposed URLs for conversation {conversation_id}'
 
         # Use the existing method to get the agent-server URL
         agent_server_url = self._get_agent_server_url(sandbox)
@@ -1495,7 +1495,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
 
 class LiveStatusAppConversationServiceInjector(AppConversationServiceInjector):
     sandbox_startup_timeout: int = Field(
-        default=300, description='The max timeout time for sandbox startup'
+        default=600, description='The max timeout time for sandbox startup'
     )
     sandbox_startup_poll_frequency: int = Field(
         default=2, description='The frequency to poll for sandbox readiness'

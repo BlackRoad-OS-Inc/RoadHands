@@ -78,7 +78,7 @@ class SandboxService(ABC):
     async def wait_for_sandbox_running(
         self,
         sandbox_id: str,
-        timeout: int = 300,
+        timeout: int = 600,
         poll_interval: int = 2,
         httpx_client: httpx.AsyncClient | None = None,
     ) -> SandboxInfo:
