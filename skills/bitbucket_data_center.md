@@ -9,12 +9,11 @@ triggers:
 ---
 
 You have access to an environment variable, `BITBUCKET_DATA_CENTER_TOKEN`, which contains
-an auth token in the format `username:your-token` that allows you to interact with the git repository.
+a basic auth token in the format `username:your-token` that allows you to interact with the git repository.
 
-You can also use this token to interact with Bitbucket Data Center's REST API,
-but you must strip the username from the token and use it as a bearer token in the `Authorization` header. For example:
+You can also use this token to interact with Bitbucket Data Center's REST API:
 ```bash
-curl -H "Authorization Bearer $(echo $BITBUCKET_DATA_CENTER_TOKEN | cut -d: -f2)" https://{domain}/rest/api/1.0/...
+curl https://${BITBUCKET_DATA_CENTER_TOKEN}@{domain}/rest/api/1.0/...
 ```
 
 <IMPORTANT>

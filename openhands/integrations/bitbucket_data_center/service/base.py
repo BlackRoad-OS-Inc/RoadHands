@@ -21,7 +21,7 @@ from openhands.utils.http_session import httpx_verify_option
 class BitbucketDCMixinBase(BaseGitService, HTTPClient):
     """
     Base mixin for Bitbucket Data Center service containing common functionality.
-    Uses Bitbucket Server REST API 1.0 at https://{domain}/rest/api/1.0
+    Uses Bitbucket Data Center REST API 1.0 at https://{domain}/rest/api/1.0
     """
 
     BASE_URL: str = ''  # Set dynamically from domain in __init__
@@ -87,9 +87,9 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
     async def _fetch_paginated_data(
         self, url: str, params: dict, max_items: int
     ) -> list[dict]:
-        """Fetch data with pagination support for Bitbucket Server API 1.0.
+        """Fetch data with pagination support for Bitbucket Data Center API 1.0.
 
-        Bitbucket Server uses isLastPage + nextPageStart instead of a 'next' URL.
+        Bitbucket Data Center uses isLastPage + nextPageStart instead of a 'next' URL.
         """
         all_items: list[dict] = []
         current_params = dict(params)
@@ -181,7 +181,6 @@ class BitbucketDCMixinBase(BaseGitService, HTTPClient):
         full_name = f'{project_key}/{repo_slug}'
         is_public = repo.get('public', False)
 
-        # defaultBranch is a plain string in the DC REST API schema
         main_branch: str | None = repo.get('defaultBranch') or None
 
         return Repository(

@@ -48,7 +48,7 @@ class BitbucketDCFeaturesMixin(BitbucketDCMixinBase):
 
         response, _ = await self._make_request(url)
 
-        # Bitbucket Server browse endpoint returns {"lines": [{"text": "..."}, ...]}
+        # Bitbucket Data Center browse endpoint returns {"lines": [{"text": "..."}, ...]}
         lines = response.get('lines', [])
         content = '\n'.join(line.get('text', '') for line in lines)
 

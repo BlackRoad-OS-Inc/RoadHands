@@ -30,7 +30,7 @@ class BitbucketDataCenterService(
 ):
     """Implementation of GitService for Bitbucket Data Center (self-hosted).
 
-    Uses Bitbucket Server REST API 1.0 at https://{domain}/rest/api/1.0.
+    Uses Bitbucket Data Center REST API 1.0 at https://{domain}/rest/api/1.0.
     The domain is always taken from ProviderToken.host — there is no default
     domain since Data Center instances are self-hosted.
     """
