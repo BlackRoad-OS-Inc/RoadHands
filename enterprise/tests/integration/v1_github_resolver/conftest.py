@@ -36,6 +36,11 @@ os.environ.setdefault('KEYCLOAK_REALM', 'test-realm')
 os.environ.setdefault('KEYCLOAK_CLIENT_ID', 'test-client')
 os.environ.setdefault('KEYCLOAK_CLIENT_SECRET', 'test-secret')
 
+# Set the templates directory to the absolute path
+_repo_root = Path(__file__).parent.parent.parent.parent.parent
+_templates_dir = _repo_root / 'openhands' / 'integrations' / 'templates' / 'resolver'
+os.environ.setdefault('OPENHANDS_RESOLVER_TEMPLATES_DIR', str(_templates_dir) + '/')
+
 # Import storage models for database setup
 # Note: Import ALL models to ensure tables are created
 from server.constants import ORG_SETTINGS_VERSION
