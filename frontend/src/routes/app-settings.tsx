@@ -324,8 +324,10 @@ function AppSettingsScreen() {
                 className="w-full max-w-[680px]"
               />
               <p className="text-xs text-gray-500">
-                Path to the marketplace JSON file in the public skills repository.
-                Leave empty to load all skills without marketplace filtering.
+                Path to the marketplace JSON file that defines which skills are loaded.
+                Supports formats: &apos;marketplaces/default.json&apos; (default repo) or
+                &apos;owner/repo:path/to/marketplace.json&apos; (custom repo with cross-repo skill loading).
+                Leave empty to load all skills without filtering.
               </p>
             </div>
           </div>
