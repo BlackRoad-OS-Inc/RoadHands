@@ -26,6 +26,7 @@ from openhands.app_server.config import (
     depends_sandbox_service,
     get_event_callback_service,
 )
+from openhands.analytics import analytics_constants, get_analytics_service
 from openhands.app_server.errors import AuthError
 from openhands.app_server.event.event_service import EventService
 from openhands.app_server.sandbox.sandbox_models import SandboxInfo
@@ -131,6 +132,40 @@ async def on_conversation_update(
     await app_conversation_info_service.save_app_conversation_info(
         app_conversation_info
     )
+
+    # Analytics: conversation created
+    try:
+        analytics = get_analytics_service()
+        if analytics and sandbox_info.created_by_user_id:
+            from enterprise.storage.user_store import UserStore
+
+            user_obj = await UserStore.get_user_by_id_async(
+                sandbox_info.created_by_user_id
+            )
+            if user_obj:
+                consented = user_obj.user_consents_to_analytics is True
+                org_id = (
+                    str(user_obj.current_org_id) if user_obj.current_org_id else None
+                )
+                analytics.capture(
+                    distinct_id=sandbox_info.created_by_user_id,
+                    event=analytics_constants.CONVERSATION_CREATED,
+                    properties={
+                        'conversation_id': str(conversation_info.id),
+                        'trigger': existing.trigger.value if existing.trigger else None,
+                        'llm_model': (
+                            conversation_info.agent.llm.model
+                            if conversation_info.agent and conversation_info.agent.llm
+                            else None
+                        ),
+                        'agent_type': 'default',
+                        'has_repository': existing.selected_repository is not None,
+                    },
+                    org_id=org_id,
+                    consented=consented,
+                )
+    except Exception:
+        _logger.exception('analytics:conversation_created:failed')
 
     return Success()
 
