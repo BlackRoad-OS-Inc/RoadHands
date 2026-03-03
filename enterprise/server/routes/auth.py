@@ -611,7 +611,8 @@ async def accept_tos(request: Request):
 
     # Update user settings with TOS acceptance
     # Use timezone-naive datetime for compatibility with TIMESTAMP WITHOUT TIME ZONE column
-    accepted_tos: datetime = datetime.now(timezone.utc).replace(tzinfo=None)
+    # TODO: Change accepted_tos column to TIMESTAMP WITH TIME ZONE and use datetime.now(timezone.utc)
+    accepted_tos: datetime = datetime.utcnow()  # Band-aid until schema is fixed
     async with a_session_maker() as session:
         result = await session.execute(
             select(User).where(User.id == uuid.UUID(user_id))
