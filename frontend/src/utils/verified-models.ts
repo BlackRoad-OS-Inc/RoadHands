@@ -8,7 +8,9 @@ export const VERIFIED_PROVIDERS = [
   "clarifai",
 ];
 export const VERIFIED_MODELS = [
+  "claude-opus-4-6",
   "claude-opus-4-5-20251101",
+  "claude-sonnet-4-6",
   "claude-sonnet-4-5-20250929",
   "gpt-5.2-codex",
   "gpt-5.2",
@@ -19,6 +21,7 @@ export const VERIFIED_MODELS = [
   "devstral-medium-2512",
   "kimi-k2-0711-preview",
   "qwen3-coder-480b",
+  "glm-4.7",
 ];
 
 // LiteLLM does not return OpenAI models with the provider, so we list them here to set them ourselves for consistency
@@ -33,6 +36,7 @@ export const VERIFIED_OPENAI_MODELS = [
 // LiteLLM does not return the compatible Anthropic models with the provider, so we list them here to set them ourselves
 // (e.g., they return `claude-3-5-sonnet-20241022` instead of `anthropic/claude-3-5-sonnet-20241022`)
 export const VERIFIED_ANTHROPIC_MODELS = [
+  "claude-opus-4-6",
   "claude-opus-4-5-20251101",
   "claude-sonnet-4-5-20250929",
   "claude-3-5-sonnet-20240620",
@@ -50,7 +54,9 @@ export const VERIFIED_MISTRAL_MODELS = ["devstral-medium-2512"];
 // LiteLLM does not return the compatible OpenHands models with the provider, so we list them here to set them ourselves
 // (e.g., they return `claude-sonnet-4-20250514` instead of `openhands/claude-sonnet-4-20250514`)
 export const VERIFIED_OPENHANDS_MODELS = [
+  "claude-opus-4-6",
   "claude-opus-4-5-20251101",
+  "claude-sonnet-4-6",
   "claude-sonnet-4-5-20250929",
   "gpt-5.2-codex",
   "gpt-5.2",
@@ -60,6 +66,7 @@ export const VERIFIED_OPENHANDS_MODELS = [
   "devstral-medium-2512",
   "kimi-k2-0711-preview",
   "qwen3-coder-480b",
+  "glm-4.7",
 ];
 
 // Default model for OpenHands provider
