@@ -266,7 +266,7 @@ async def keycloak_callback(
                     distinct_id=user_id,
                     event=analytics_constants.USER_SIGNED_UP,
                     properties={
-                        'idp': user_info.get('identity_provider', 'keycloak'),
+                        'idp': user_info.identity_provider or 'keycloak',
                         'email_domain': email.split('@')[1]
                         if email and '@' in email
                         else None,

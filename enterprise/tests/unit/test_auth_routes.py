@@ -189,7 +189,9 @@ async def test_keycloak_callback_success_with_valid_offline_token(
         patch('server.routes.auth.set_response_cookie') as mock_set_cookie,
         patch('server.routes.auth.UserStore') as mock_user_store,
         patch('server.routes.auth.get_analytics_service') as mock_posthog,
-        patch('storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock) as mock_get_org,
+        patch(
+            'storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock
+        ) as mock_get_org,
     ):
         # Mock user with accepted_tos
         mock_user = MagicMock()
@@ -361,7 +363,9 @@ async def test_keycloak_callback_success_without_offline_token(
         patch('server.routes.auth.KEYCLOAK_CLIENT_ID', 'test-client'),
         patch('server.routes.auth.UserStore') as mock_user_store,
         patch('server.routes.auth.get_analytics_service') as mock_posthog,
-        patch('storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock) as mock_get_org,
+        patch(
+            'storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock
+        ) as mock_get_org,
     ):
         # Mock user with accepted_tos
         mock_user = MagicMock()
@@ -2105,3 +2109,165 @@ async def test_accept_tos_stores_timezone_naive_datetime(mock_request):
         # The datetime assigned to user.accepted_tos must be timezone-naive
         # (compatible with TIMESTAMP WITHOUT TIME ZONE database column)
         assert mock_user.accepted_tos.tzinfo is None
+
+
+@pytest.mark.asyncio
+async def test_keycloak_callback_new_user_analytics_event(
+    mock_request, create_keycloak_user_info
+):
+    """Test that user signup analytics event correctly accesses KeycloakUserInfo attributes.
+
+    This test verifies the fix for the AttributeError that occurred when trying to call
+    .get() on a Pydantic model. The analytics code should use direct attribute access
+    (user_info.identity_provider) instead of dict-style .get() method.
+
+    Fixes: https://github.com/All-Hands-AI/OpenHands/issues/13243
+    """
+    # Create a KeycloakUserInfo model (Pydantic) with identity_provider set
+    user_info = create_keycloak_user_info(
+        sub='test_new_user_id',
+        preferred_username='new_user',
+        email='newuser@example.com',
+        email_verified=True,
+        identity_provider='github',
+    )
+
+    with (
+        patch('server.routes.auth.token_manager') as mock_token_manager,
+        patch('server.routes.auth.user_verifier') as mock_verifier,
+        patch('server.routes.auth.set_response_cookie'),
+        patch('server.routes.auth.UserStore') as mock_user_store,
+        patch('server.routes.auth.get_analytics_service') as mock_get_analytics,
+        patch('storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock),
+    ):
+        # Mock analytics service
+        mock_analytics = MagicMock()
+        mock_get_analytics.return_value = mock_analytics
+
+        # Mock a new user (get_user_by_id returns None)
+        mock_user = MagicMock()
+        mock_user.id = 'test_new_user_id'
+        mock_user.current_org_id = 'test_org_id'
+        mock_user.accepted_tos = '2025-01-01'
+        mock_user.user_consents_to_analytics = True
+
+        mock_user_store.get_user_by_id = AsyncMock(return_value=None)  # New user
+        mock_user_store.create_user = AsyncMock(return_value=mock_user)
+        mock_user_store.backfill_contact_name = AsyncMock()
+        mock_user_store.backfill_user_email = AsyncMock()
+
+        mock_token_manager.get_keycloak_tokens = AsyncMock(
+            return_value=('test_access_token', 'test_refresh_token')
+        )
+        mock_token_manager.get_user_info = AsyncMock(return_value=user_info)
+        mock_token_manager.store_idp_tokens = AsyncMock()
+        mock_token_manager.validate_offline_token = AsyncMock(return_value=True)
+        mock_token_manager.check_duplicate_base_email = AsyncMock(return_value=False)
+
+        mock_verifier.is_active.return_value = True
+        mock_verifier.is_user_allowed.return_value = True
+
+        # Act - This would have raised AttributeError before the fix
+        result = await keycloak_callback(
+            code='test_code', state='test_state', request=mock_request
+        )
+
+        # Assert - Callback should succeed
+        assert isinstance(result, RedirectResponse)
+        assert result.status_code == 302
+
+        # Verify analytics.capture was called (may be called multiple times for signup + login)
+        assert mock_analytics.capture.call_count >= 1
+
+        # Find the 'user signed up' event call
+        signup_call = None
+        for call in mock_analytics.capture.call_args_list:
+            if call.kwargs.get('event') == 'user signed up':
+                signup_call = call
+                break
+
+        assert signup_call is not None, "Expected 'user signed up' analytics event"
+
+        # Check that identity_provider was correctly extracted from Pydantic model
+        properties = signup_call.kwargs['properties']
+        assert properties['idp'] == 'github'
+        assert properties['email_domain'] == 'example.com'
+        assert properties['invitation_source'] == 'self_signup'
+
+
+@pytest.mark.asyncio
+async def test_keycloak_callback_new_user_analytics_fallback_idp(
+    mock_request, create_keycloak_user_info
+):
+    """Test that analytics event uses 'keycloak' fallback when identity_provider is None.
+
+    This verifies the fallback behavior of 'user_info.identity_provider or 'keycloak''.
+    """
+    # Create a KeycloakUserInfo model without identity_provider
+    user_info = create_keycloak_user_info(
+        sub='test_new_user_id',
+        preferred_username='new_user',
+        email='newuser@example.com',
+        email_verified=True,
+        identity_provider=None,  # No identity provider
+    )
+
+    with (
+        patch('server.routes.auth.token_manager') as mock_token_manager,
+        patch('server.routes.auth.user_verifier') as mock_verifier,
+        patch('server.routes.auth.set_response_cookie'),
+        patch('server.routes.auth.UserStore') as mock_user_store,
+        patch('server.routes.auth.get_analytics_service') as mock_get_analytics,
+        patch('storage.org_store.OrgStore.get_org_by_id', new_callable=AsyncMock),
+    ):
+        # Mock analytics service
+        mock_analytics = MagicMock()
+        mock_get_analytics.return_value = mock_analytics
+
+        # Mock a new user
+        mock_user = MagicMock()
+        mock_user.id = 'test_new_user_id'
+        mock_user.current_org_id = 'test_org_id'
+        mock_user.accepted_tos = '2025-01-01'
+        mock_user.user_consents_to_analytics = True
+
+        mock_user_store.get_user_by_id = AsyncMock(return_value=None)  # New user
+        mock_user_store.create_user = AsyncMock(return_value=mock_user)
+        mock_user_store.backfill_contact_name = AsyncMock()
+        mock_user_store.backfill_user_email = AsyncMock()
+
+        mock_token_manager.get_keycloak_tokens = AsyncMock(
+            return_value=('test_access_token', 'test_refresh_token')
+        )
+        mock_token_manager.get_user_info = AsyncMock(return_value=user_info)
+        mock_token_manager.store_idp_tokens = AsyncMock()
+        mock_token_manager.validate_offline_token = AsyncMock(return_value=True)
+        mock_token_manager.check_duplicate_base_email = AsyncMock(return_value=False)
+
+        mock_verifier.is_active.return_value = True
+        mock_verifier.is_user_allowed.return_value = True
+
+        # Act
+        result = await keycloak_callback(
+            code='test_code', state='test_state', request=mock_request
+        )
+
+        # Assert
+        assert isinstance(result, RedirectResponse)
+        assert result.status_code == 302
+
+        # Verify analytics.capture was called (may be called multiple times)
+        assert mock_analytics.capture.call_count >= 1
+
+        # Find the 'user signed up' event call
+        signup_call = None
+        for call in mock_analytics.capture.call_args_list:
+            if call.kwargs.get('event') == 'user signed up':
+                signup_call = call
+                break
+
+        assert signup_call is not None, "Expected 'user signed up' analytics event"
+
+        # Check that fallback 'keycloak' was used when identity_provider is None
+        properties = signup_call.kwargs['properties']
+        assert properties['idp'] == 'keycloak'
