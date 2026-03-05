@@ -326,7 +326,7 @@ async def device_verification_authenticated(
                     from storage.org_store import OrgStore
 
                     current_org = (
-                        OrgStore.get_org_by_id(user.current_org_id)
+                        await OrgStore.get_org_by_id(user.current_org_id)
                         if user.current_org_id
                         else None
                     )
