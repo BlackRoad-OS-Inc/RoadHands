@@ -475,3 +475,110 @@ class TestOssInstallId:
             assert str(parsed) == result
         finally:
             read_only_dir.chmod(0o755)  # restore for cleanup
+
+
+# ---------------------------------------------------------------------------
+# identify_user tests
+# ---------------------------------------------------------------------------
+
+
+class TestIdentifyUser:
+    """Tests for the identify_user method on AnalyticsService."""
+
+    def test_identify_user_consent_false_is_noop(self, saas_service):
+        """identify_user with consented=False is a complete no-op."""
+        service, mock_client = saas_service
+        service.identify_user(
+            distinct_id='user-1',
+            consented=False,
+            email='a@b.com',
+            org_id='org-1',
+        )
+        mock_client.set.assert_not_called()
+        mock_client.group_identify.assert_not_called()
+
+    def test_identify_user_oss_mode_is_noop(self, oss_service):
+        """identify_user in OSS mode is a complete no-op."""
+        service, mock_client = oss_service
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+            email='a@b.com',
+            org_id='org-1',
+        )
+        mock_client.set.assert_not_called()
+        mock_client.group_identify.assert_not_called()
+
+    def test_identify_user_saas_sets_person_properties(self, saas_service):
+        """identify_user in SaaS mode with consent calls set_person_properties with expected fields."""
+        service, mock_client = saas_service
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+            email='alice@example.com',
+            org_id='org-42',
+            org_name='Acme Corp',
+            idp='github',
+        )
+        mock_client.set.assert_called_once()
+        _, kwargs = mock_client.set.call_args
+        props = kwargs.get('properties', {})
+        assert props['email'] == 'alice@example.com'
+        assert props['org_id'] == 'org-42'
+        assert props['org_name'] == 'Acme Corp'
+        assert props['idp'] == 'github'
+        assert 'last_login_at' in props
+        assert 'plan_tier' in props
+
+    def test_identify_user_saas_with_orgs_calls_group_identify(self, saas_service):
+        """identify_user in SaaS mode with orgs calls group_identify for each org."""
+        service, mock_client = saas_service
+        orgs = [
+            {'id': 'org-1', 'name': 'Org One', 'member_count': 5},
+            {'id': 'org-2', 'name': 'Org Two', 'member_count': 10},
+        ]
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+            orgs=orgs,
+        )
+        assert mock_client.group_identify.call_count == 2
+
+    def test_identify_user_with_user_none_skips_all(self, saas_service):
+        """identify_user with no email/org/orgs still calls set_person_properties (with None values)."""
+        service, mock_client = saas_service
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+        )
+        # set_person_properties is still called (with None fields)
+        mock_client.set.assert_called_once()
+        # but group_identify is NOT called since no orgs provided
+        mock_client.group_identify.assert_not_called()
+
+    def test_identify_user_catches_exception(self, saas_service):
+        """identify_user catches any exception internally and does not raise."""
+        service, mock_client = saas_service
+        mock_client.set.side_effect = RuntimeError('PostHog SDK error')
+        # Should not raise
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+            email='a@b.com',
+        )
+
+    def test_identify_user_org_with_no_name(self, saas_service):
+        """identify_user with org that has no name handles it gracefully."""
+        service, mock_client = saas_service
+        orgs = [
+            {'id': 'org-1', 'name': None, 'member_count': 3},
+        ]
+        service.identify_user(
+            distinct_id='user-1',
+            consented=True,
+            orgs=orgs,
+        )
+        assert mock_client.group_identify.call_count == 1
+        _, kwargs = mock_client.group_identify.call_args
+        props = kwargs.get('properties', {})
+        assert props.get('org_name') is None
