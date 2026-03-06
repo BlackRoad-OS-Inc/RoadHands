@@ -41,4 +41,4 @@ You are reviewing code for OpenHands Web UI. Follow these guidelines:
 - Use openhands/linter /__init__.py for style checking
 - Follow Development.md style guide
 - Tests should be in tests directory
-- Check public docs https://docs.openhands.dev/openhands/usage/run-openhands/local-setup
+- Check public docs https://docs.openhands.dev/
