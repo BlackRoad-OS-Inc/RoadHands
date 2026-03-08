@@ -17,7 +17,7 @@ from openhands.storage.settings.settings_store import SettingsStore
 
 
 class MockUserAuth(UserAuth):
-    """Mock implementation of UserAuth for testing"""
+    """Mock implementation of UserAuth for testing."""
 
     def __init__(self):
         self._settings = None
@@ -81,7 +81,7 @@ def test_client():
 
 @pytest.mark.asyncio
 async def test_settings_api_endpoints(test_client):
-    """Test that the settings API endpoints work with the new auth system"""
+    """Test that the settings API endpoints work with the new auth system."""
     # Test data with remote_runtime_resource_factor
     settings_data = {
         'language': 'en',
@@ -104,6 +104,7 @@ async def test_settings_api_endpoints(test_client):
     # Test the GET settings endpoint
     response = test_client.get('/api/settings')
     assert response.status_code == 200
+    assert response.json()['sdk_settings_schema']['model_name'] == 'SDKSettings'
 
     # Test updating with partial settings
     partial_settings = {
@@ -122,7 +123,7 @@ async def test_settings_api_endpoints(test_client):
 
 @pytest.mark.asyncio
 async def test_search_api_key_preservation(test_client):
-    """Test that search_api_key is preserved when sending empty string"""
+    """Test that search_api_key is preserved when sending an empty string."""
     # 1. Set initial settings with a search API key
     initial_settings = {
         'search_api_key': 'initial-secret-key',

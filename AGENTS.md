@@ -1,6 +1,10 @@
 This repository contains the code for OpenHands, an automated AI software engineer. It has a Python backend
 (in the `openhands` directory) and React frontend (in the `frontend` directory).
 
+
+## Repository Memory
+- Legacy `/api/settings` responses can bridge to the SDK by returning `sdk_settings_schema` from `openhands.sdk.settings` when that package is available. Use this as the compatibility handoff while V1 settings work moves into the SDK and newer clients.
+
 ## General Setup:
 To set up the entire repo, including frontend and backend, run `make build`.
 You don't need to do this unless the user asks you to, or if you're trying to run the entire application.

@@ -6,7 +6,9 @@
 # Unless you are working on deprecation, please avoid extending this legacy file and consult the V1 codepaths above.
 # Tag: Legacy-V0
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
+import importlib
 import os
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import JSONResponse
@@ -36,6 +38,16 @@ from openhands.utils.llm import get_provider_api_base, is_openhands_model
 LITE_LLM_API_URL = os.environ.get(
     'LITE_LLM_API_URL', 'https://llm-proxy.app.all-hands.dev'
 )
+
+
+def _get_sdk_settings_schema() -> dict[str, Any] | None:
+    try:
+        settings_module = importlib.import_module('openhands.sdk.settings')
+    except ModuleNotFoundError:
+        return None
+
+    return settings_module.SDKSettings.export_schema().model_dump(mode='json')
+
 
 app = APIRouter(prefix='/api', dependencies=get_dependencies())
 
@@ -84,6 +96,7 @@ async def load_settings(
             search_api_key_set=settings.search_api_key is not None
             and bool(settings.search_api_key),
             provider_tokens_set=provider_tokens_set,
+            sdk_settings_schema=_get_sdk_settings_schema(),
         )
 
         # If the base url matches the default for the provider, we don't send it

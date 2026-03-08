@@ -39,6 +39,39 @@ export type MCPConfig = {
   shttp_servers: (string | MCPSHTTPServer)[];
 };
 
+export type SettingsChoice = {
+  label: string;
+  value: string;
+};
+
+export type SettingsFieldSchema = {
+  key: string;
+  label: string;
+  description?: string | null;
+  widget: string;
+  section: string;
+  section_label: string;
+  order: number;
+  choices: SettingsChoice[];
+  depends_on: string[];
+  advanced: boolean;
+  secret: boolean;
+  required: boolean;
+  slash_command?: string | null;
+};
+
+export type SettingsSectionSchema = {
+  key: string;
+  label: string;
+  order: number;
+  fields: SettingsFieldSchema[];
+};
+
+export type SettingsSchema = {
+  model_name: string;
+  sections: SettingsSectionSchema[];
+};
+
 export type Settings = {
   llm_model: string;
   llm_base_url: string;
@@ -67,4 +100,5 @@ export type Settings = {
   git_user_name?: string;
   git_user_email?: string;
   v1_enabled?: boolean;
+  sdk_settings_schema?: SettingsSchema | null;
 };
