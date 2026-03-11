@@ -67,6 +67,92 @@ test.describe("Smoke Tests @smoke", () => {
     await expect(homePage.accountSettingsMenu).toBeVisible();
   });
 
+  test("should be able to purchase $10 credits via Stripe", async ({ page }) => {
+    // Navigate to home and open user menu
+    await homePage.goto();
+    await homePage.openUserMenu();
+
+    // Click on Billing link in the user menu
+    const billingLink = page.getByRole('link', { name: /billing/i });
+    await billingLink.click();
+
+    // Wait for billing page to load
+    await page.waitForURL(/\/settings\/billing/, { timeout: 30_000 });
+    await expect(page.getByTestId('billing-settings')).toBeVisible({ timeout: 10_000 });
+
+    // Capture initial balance
+    const balanceElement = page.getByTestId('user-balance');
+    await expect(balanceElement).toBeVisible({ timeout: 10_000 });
+    const initialBalanceText = await balanceElement.textContent();
+    const initialBalance = parseFloat(initialBalanceText?.replace('$', '') || '0');
+    console.log(`Initial balance: $${initialBalance.toFixed(2)}`);
+
+    // Enter $10 in the Add Funds input
+    const topUpInput = page.getByTestId('top-up-input');
+    await topUpInput.fill('10');
+
+    // Click Add Credit button
+    const addCreditButton = page.getByRole('button', { name: /add credit/i });
+    await expect(addCreditButton).toBeEnabled({ timeout: 5_000 });
+    await addCreditButton.click();
+
+    // Wait for redirect to Stripe checkout
+    await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
+    console.log('Redirected to Stripe checkout');
+
+    // Fill in Stripe checkout form
+    // Wait for the payment form to load
+    await page.waitForLoadState('networkidle', { timeout: 30_000 });
+
+    // Fill in card number
+    const cardNumberInput = page.locator('#cardNumber');
+    await cardNumberInput.waitFor({ state: 'visible', timeout: 15_000 });
+    await cardNumberInput.fill('5105105105105100');
+
+    // Fill in expiry date
+    const cardExpiryInput = page.locator('#cardExpiry');
+    await cardExpiryInput.fill('12/35');
+
+    // Fill in CVC
+    const cardCvcInput = page.locator('#cardCvc');
+    await cardCvcInput.fill('123');
+
+    // Fill in cardholder name
+    const billingNameInput = page.locator('#billingName');
+    await billingNameInput.fill('Testy Tester');
+
+    // Fill in ZIP code
+    const postalCodeInput = page.locator('#billingPostalCode');
+    await postalCodeInput.fill('12345');
+
+    // Take screenshot of filled Stripe form
+    await page.screenshot({ path: 'test-results/screenshots/stripe-checkout-filled.png' });
+
+    // Click Pay button
+    const payButton = page.getByRole('button', { name: /pay/i });
+    await payButton.click();
+
+    // Wait for redirect back to billing page
+    await page.waitForURL(/\/settings\/billing/, { timeout: 60_000 });
+    console.log('Returned to billing page after payment');
+
+    // Wait for balance to update (may need to wait for API refresh)
+    await page.waitForTimeout(2000);
+
+    // Verify balance increased by $10
+    await expect(balanceElement).toBeVisible({ timeout: 10_000 });
+    const newBalanceText = await balanceElement.textContent();
+    const newBalance = parseFloat(newBalanceText?.replace('$', '') || '0');
+    console.log(`New balance: $${newBalance.toFixed(2)}`);
+
+    const expectedBalance = initialBalance + 10;
+    expect(newBalance).toBeCloseTo(expectedBalance, 2);
+    console.log(`Balance increased by $10: $${initialBalance.toFixed(2)} -> $${newBalance.toFixed(2)}`);
+
+    // Take screenshot of updated balance
+    await page.screenshot({ path: 'test-results/screenshots/billing-after-payment.png' });
+  });
+
   test("should be able to start a conversation, send a prompt, and receive response @critical", async ({ page }) => {
     // Navigate to home
     await homePage.goto();
