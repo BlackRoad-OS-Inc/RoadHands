@@ -41,6 +41,7 @@ from openhands.app_server.app_conversation.app_conversation_service import (
 )
 from openhands.app_server.app_conversation.app_conversation_service_base import (
     AppConversationServiceBase,
+    get_project_dir,
 )
 from openhands.app_server.app_conversation.app_conversation_start_task_service import (
     AppConversationStartTaskService,
@@ -77,7 +78,6 @@ from openhands.app_server.utils.llm_metadata import (
     get_llm_metadata,
     should_set_litellm_extra_body,
 )
-from openhands.experiments.experiment_manager import ExperimentManagerImpl
 from openhands.integrations.provider import ProviderType
 from openhands.integrations.service_types import SuggestedTask
 from openhands.sdk import Agent, AgentContext, LocalWorkspace
@@ -98,6 +98,20 @@ from openhands.tools.preset.planning import (
 
 _conversation_info_type_adapter = TypeAdapter(list[ConversationInfo | None])
 _logger = logging.getLogger(__name__)
+
+# Planning agent instruction to prevent "Ready to proceed?" behavior
+PLANNING_AGENT_INSTRUCTION = """<IMPORTANT_PLANNING_BOUNDARIES>
+You are a Planning Agent that can ONLY create plans - you CANNOT execute code or make changes.
+
+After you finalize the plan in PLAN.md:
+- Do NOT ask "Ready to proceed?" or offer to execute the plan
+- Do NOT attempt to run any implementation commands
+- Instead, inform the user they have two options to proceed:
+  1. Click the **Build** button below the plan preview - this will automatically switch to the code agent and instruct it to execute the plan
+  2. Switch to the code agent manually (click the agent selector button or press Shift+Tab), then send a message instructing it to execute the plan
+
+Your role ends when the plan is finalized. Implementation is handled by the code agent.
+</IMPORTANT_PLANNING_BOUNDARIES>"""
 
 
 @dataclass
@@ -417,15 +431,13 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             conversation_info = _conversation_info_type_adapter.validate_python(data)
             conversation_info = [c for c in conversation_info if c]
             return conversation_info
-        except httpx.HTTPStatusError as exc:
-            # The runtime API stops idle sandboxes all the time and they return a 503.
-            # This is normal and should not be logged.
-            if not exc.response or exc.response.status_code != 503:
-                _logger.exception(
-                    f'Error getting conversation status from sandbox {sandbox.id}',
-                    exc_info=True,
-                    stack_info=True,
-                )
+        except httpx.HTTPStatusError:
+            # The runtime API stops idle sandboxes all the time and they return a 404 or a 503.
+            # This is normal and should not be considered an error.
+            _logger.warning(
+                f'Error getting conversation status from sandbox {sandbox.id}',
+                exc_info=True,
+            )
             return []
         except Exception:
             # Not getting a status is not a fatal error - we just mark the conversation as stopped
@@ -506,6 +518,17 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         # Update the listener with sandbox info
         task.status = AppConversationStartTaskStatus.WAITING_FOR_SANDBOX
         task.sandbox_id = sandbox.id
+
+        # Log sandbox assignment for observability
+        conversation_id_str = (
+            str(task.request.conversation_id)
+            if task.request.conversation_id is not None
+            else 'unknown'
+        )
+        _logger.info(
+            f'Assigned sandbox {sandbox.id} to conversation {conversation_id_str}'
+        )
+
         yield task
 
         # Resume if paused
@@ -955,9 +978,20 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
                 mcp_config=mcp_config,
             )
 
+        # Prepare system message suffix based on agent type
+        effective_system_message_suffix = system_message_suffix
+        if agent_type == AgentType.PLAN:
+            # Prepend planning-specific instruction to prevent "Ready to proceed?" behavior
+            if system_message_suffix:
+                effective_system_message_suffix = (
+                    f'{PLANNING_AGENT_INSTRUCTION}\n\n{system_message_suffix}'
+                )
+            else:
+                effective_system_message_suffix = PLANNING_AGENT_INSTRUCTION
+
         # Add agent context
         agent_context = AgentContext(
-            system_message_suffix=system_message_suffix, secrets=secrets
+            system_message_suffix=effective_system_message_suffix, secrets=secrets
         )
         agent = agent.model_copy(update={'agent_context': agent_context})
 
@@ -1106,7 +1140,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         working_dir: str,
         plugins: list[PluginSpec] | None = None,
     ) -> StartConversationRequest:
-        """Finalize the conversation request with experiment variants and skills.
+        """Finalize the conversation request with skills and metadata.
 
         Args:
             agent: The configured agent
@@ -1127,13 +1161,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         # Generate conversation ID if not provided
         conversation_id = conversation_id or uuid4()
 
-        # Apply experiment variants
-        agent = ExperimentManagerImpl.run_agent_variant_tests__v1(
-            user.id, conversation_id, agent
-        )
-
         # Update agent's LLM with litellm_extra_body metadata for tracing
-        # This is done after experiment variants to ensure the final LLM config is used
         agent = self._update_agent_with_llm_metadata(agent, conversation_id, user.id)
 
         # Load and merge skills if remote workspace is available
@@ -1196,11 +1224,16 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         1. Setting up git provider secrets
         2. Configuring LLM and MCP settings
         3. Creating an agent with appropriate context
-        4. Finalizing the request with skills and experiment variants
+        4. Finalizing the request with skills and metadata
         5. Passing plugins to the agent server for remote plugin loading
         """
         user = await self.user_context.get_user_info()
-        workspace = LocalWorkspace(working_dir=working_dir)
+
+        # Compute the project root — this is the repo directory when a repo is
+        # selected, or the sandbox working_dir otherwise.  All tools, hooks,
+        # setup scripts, and plan paths must use this consistently.
+        project_dir = get_project_dir(working_dir, selected_repository)
+        workspace = LocalWorkspace(working_dir=project_dir)
 
         # Set up secrets for all git providers
         secrets = await self._setup_secrets_for_git_providers(user)
@@ -1217,7 +1250,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             user.condenser_max_size,
             secrets=secrets,
             git_provider=git_provider,
-            working_dir=working_dir,
+            working_dir=project_dir,
         )
 
         # Finalize and return the conversation request
@@ -1231,7 +1264,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             sandbox,
             remote_workspace,
             selected_repository,
-            working_dir,
+            project_dir,
             plugins=plugins,
         )
 
@@ -1283,20 +1316,97 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             f'Successfully updated agent-server conversation {conversation_id} title to "{new_title}"'
         )
 
+    def _validate_repository_update(
+        self,
+        request: AppConversationUpdateRequest,
+        existing_branch: str | None = None,
+    ) -> None:
+        """Validate repository-related fields in the update request.
+
+        Args:
+            request: The update request containing fields to validate
+            existing_branch: The conversation's current branch (if any)
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # Check if repository is being set
+        if 'selected_repository' in request.model_fields_set:
+            repo = request.selected_repository
+            if repo is not None:
+                # Validate repository format (owner/repo)
+                if '/' not in repo or repo.count('/') != 1:
+                    raise ValueError(
+                        f"Invalid repository format: '{repo}'. Expected 'owner/repo'."
+                    )
+
+                # Sanitize: check for dangerous characters
+                if any(c in repo for c in [';', '&', '|', '$', '`', '\n', '\r']):
+                    raise ValueError(f"Invalid characters in repository name: '{repo}'")
+
+                # If setting a repository, branch should also be provided
+                # (either in this request or already exists in conversation)
+                if (
+                    'selected_branch' not in request.model_fields_set
+                    and existing_branch is None
+                ):
+                    _logger.warning(
+                        f'Repository {repo} set without branch in the same request '
+                        'and no existing branch in conversation'
+                    )
+            else:
+                # Repository is being removed (set to null)
+                # Enforce consistency: branch and provider must also be cleared
+                if 'selected_branch' in request.model_fields_set:
+                    if request.selected_branch is not None:
+                        raise ValueError(
+                            'When removing repository, branch must also be cleared'
+                        )
+                if 'git_provider' in request.model_fields_set:
+                    if request.git_provider is not None:
+                        raise ValueError(
+                            'When removing repository, git_provider must also be cleared'
+                        )
+
+        # Validate branch if provided
+        if 'selected_branch' in request.model_fields_set:
+            branch = request.selected_branch
+            if branch is not None:
+                # Sanitize: check for dangerous characters
+                if any(c in branch for c in [';', '&', '|', '$', '`', '\n', '\r', ' ']):
+                    raise ValueError(f"Invalid characters in branch name: '{branch}'")
+
     async def update_app_conversation(
         self, conversation_id: UUID, request: AppConversationUpdateRequest
     ) -> AppConversation | None:
-        """Update an app conversation and return it. Return None if the conversation
-        did not exist.
+        """Update an app conversation and return it.
+
+        Return None if the conversation did not exist.
+
+        Only fields that are explicitly set in the request will be updated.
+        This allows partial updates where only specific fields are modified.
+        Fields can be set to None to clear them (e.g., removing a repository).
+
+        Raises:
+            ValueError: If repository/branch validation fails
         """
         info = await self.app_conversation_info_service.get_app_conversation_info(
             conversation_id
         )
         if info is None:
             return None
-        for field_name in AppConversationUpdateRequest.model_fields:
+
+        # Validate repository-related fields before updating
+        # Pass existing branch to avoid false warnings when only updating repository
+        self._validate_repository_update(request, existing_branch=info.selected_branch)
+
+        # Only update fields that were explicitly provided in the request
+        # This uses Pydantic's model_fields_set to detect which fields were set,
+        # allowing us to distinguish between "not provided" and "explicitly set to None"
+        for field_name in request.model_fields_set:
             value = getattr(request, field_name)
             setattr(info, field_name, value)
+
         info = await self.app_conversation_info_service.save_app_conversation_info(info)
         conversations = await self._build_app_conversations([info])
         return conversations[0]
