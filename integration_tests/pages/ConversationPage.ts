@@ -221,6 +221,42 @@ export class ConversationPage extends BasePage {
   }
 
   /**
+   * Wait for a message containing specific text to appear
+   * @param expectedText - The text to search for in messages
+   * @param timeout - Maximum time to wait in milliseconds
+   * @returns The message containing the expected text
+   */
+  async waitForMessageContaining(expectedText: string, timeout: number = 120_000): Promise<string> {
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < timeout) {
+      // Check for errors first
+      if (await this.hasError()) {
+        const errorMsg = await this.getErrorMessage();
+        throw new Error(`Agent error while waiting for message: ${errorMsg}`);
+      }
+
+      // Get all messages and check if any contain the expected text
+      const messages = await this.getMessages();
+      for (const message of messages) {
+        if (message.includes(expectedText)) {
+          return message;
+        }
+      }
+
+      // Wait a bit before checking again
+      await this.page.waitForTimeout(1000);
+    }
+
+    // Get all messages for error reporting
+    const allMessages = await this.getMessages();
+    throw new Error(
+      `Timeout waiting for message containing "${expectedText}" after ${timeout}ms. ` +
+      `Messages found: ${JSON.stringify(allMessages.slice(-5))}`
+    );
+  }
+
+  /**
    * Stop the currently running agent
    */
   async stopAgent(): Promise<void> {

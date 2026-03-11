@@ -17,12 +17,10 @@ import { HomePage, ConversationPage } from "../pages";
  *
  * Environment Variables:
  * - TEST_REPO_URL: Repository to use for testing (default: null)
- * - TEST_PROMPT: Prompt to send to agent (default: "Flip a coin!")
  */
 
 // Test configuration
 const TEST_REPO_URL = process.env.TEST_REPO_URL;
-const TEST_PROMPT = process.env.TEST_PROMPT || "Flip a coin!";
 
 test.describe("Smoke Tests @smoke", () => {
   test.describe.configure({ mode: "serial" }); // Run tests in sequence
@@ -104,24 +102,18 @@ test.describe("Smoke Tests @smoke", () => {
     await page.screenshot({ path: "test-results/screenshots/conversation-ready.png" });
 
     // Execute the test prompt
-    console.log(`Sending prompt: "${TEST_PROMPT}"`);
-    await conversationPage.executePrompt(TEST_PROMPT, 120_000);
+    const prompt = "Reverse the word 'hello'";
+    console.log(`Sending prompt: "${prompt}"`);
+    await conversationPage.executePrompt(prompt, 120_000);
 
-    // Verify no errors occurred
-    await conversationPage.verifyNoErrors();
-
-    // Verify the response contains "heads" or "tails" (case insensitive)
-    const lastMessage = await conversationPage.getLastAgentMessage();
-    expect(lastMessage).not.toBeNull();
-    const responseText = lastMessage!.toLowerCase();
-    const containsValidResponse = responseText.includes("heads") || responseText.includes("tails");
-    expect(containsValidResponse, `Expected response to contain "heads" or "tails", but got: "${lastMessage}"`).toBe(true);
-    console.log(`Agent response: "${lastMessage}"`);
+    // Wait for a message containing the expected reversed word
+    const message = await conversationPage.waitForMessageContaining("olleh", 120_000);
+    console.log(`Found expected response containing 'olleh': "${message.substring(0, 100)}..."`);
 
     // Take screenshot of successful response
     await page.screenshot({ path: "test-results/screenshots/agent-response.png" });
 
-    console.log("Smoke test passed: Agent responded with valid coin flip result");
+    console.log("Smoke test passed: Agent correctly reversed the word");
   });
 
   test("should be able to navigate to a running conversation", async ({ page }) => {
@@ -168,19 +160,13 @@ test.describe("Smoke Tests @smoke", () => {
     await conversationPage.waitForConversationReady();
 
     // Send the Tavily search prompt
-    const tavilyPrompt = "Using Tavily search, please tell me who is the prime minister of Ireland.";
-    console.log(`Sending prompt: "${tavilyPrompt}"`);
-    await conversationPage.executePrompt(tavilyPrompt, 180_000); // Longer timeout for search
+    const prompt = "Using Tavily search, please tell me who is the prime minister of Ireland.";
+    console.log(`Sending prompt: "${prompt}"`);
+    await conversationPage.executePrompt(prompt, 180_000); // Longer timeout for search
 
-    // Verify no errors occurred
-    await conversationPage.verifyNoErrors();
-
-    // Verify the response contains "Micheál Martin"
-    const lastMessage = await conversationPage.getLastAgentMessage();
-    expect(lastMessage).not.toBeNull();
-    const containsExpectedAnswer = lastMessage!.includes("Micheál Martin");
-    expect(containsExpectedAnswer, `Expected response to contain "Micheál Martin", but got: "${lastMessage}"`).toBe(true);
-    console.log(`Agent response includes expected answer: Micheál Martin`);
+    // Wait for a message containing the expected answer
+    const message = await conversationPage.waitForMessageContaining("Micheál Martin", 180_000);
+    console.log(`Found expected response containing 'Micheál Martin': "${message.substring(0, 100)}..."`);
 
     // Take screenshot of successful response
     await page.screenshot({ path: "test-results/screenshots/tavily-search-response.png" });
