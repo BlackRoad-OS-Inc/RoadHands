@@ -101,7 +101,7 @@ test.describe("Smoke Tests @smoke", () => {
     console.log('Redirected to Stripe checkout');
 
     // Wait for the Pay button to be present (indicates form is ready)
-    const payButton = page.getByRole('button', { name: /pay/i });
+    const payButton = page.locator('.SubmitButton')
     await payButton.waitFor({ state: 'attached', timeout: 30_000 });
     console.log('Stripe checkout form loaded');
 
