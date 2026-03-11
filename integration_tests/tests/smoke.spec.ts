@@ -152,6 +152,102 @@ test.describe("Smoke Tests @smoke", () => {
     await page.screenshot({ path: 'test-results/screenshots/billing-after-payment.png' });
   });
 
+  test("should be able to create API key and use it to access the API", async ({ page, request, baseURL }) => {
+    const API_KEY_NAME = "Integration Test Key";
+
+    // Navigate to home and open user menu
+    await homePage.goto();
+    await homePage.openUserMenu();
+
+    // Click on API Keys link in the user menu
+    const apiKeysLink = page.getByRole('link', { name: /api keys/i });
+    await apiKeysLink.click();
+
+    // Wait for API Keys page to load
+    await page.waitForURL(/\/settings\/api-keys/, { timeout: 30_000 });
+    console.log('Navigated to API Keys page');
+
+    // Verify "Refresh API Key" button is visible (indicates user has credits)
+    const refreshApiKeyButton = page.getByRole('button', { name: /refresh/i });
+    await expect(refreshApiKeyButton).toBeVisible({ timeout: 10_000 });
+    console.log('Refresh API Key button is visible - user has credits');
+
+    // Delete any existing "Integration Test Key" if it exists
+    const existingKeyRow = page.locator('tr', { hasText: API_KEY_NAME });
+    if (await existingKeyRow.isVisible({ timeout: 2_000 }).catch(() => false)) {
+      console.log(`Found existing "${API_KEY_NAME}", deleting it...`);
+      const deleteButton = existingKeyRow.locator('button[aria-label^="Delete"]');
+      await deleteButton.click();
+
+      // Confirm deletion in modal
+      const deleteModal = page.getByTestId('delete-api-key-modal');
+      await expect(deleteModal).toBeVisible({ timeout: 5_000 });
+      const confirmDeleteButton = page.getByRole('button', { name: /delete/i });
+      await confirmDeleteButton.click();
+
+      // Wait for modal to close
+      await expect(deleteModal).not.toBeVisible({ timeout: 5_000 });
+      console.log(`Deleted existing "${API_KEY_NAME}"`);
+    }
+
+    // Click "Create API Key" button
+    const createApiKeyButton = page.getByRole('button', { name: /create api key/i });
+    await createApiKeyButton.click();
+
+    // Wait for create modal to appear
+    const createModal = page.getByTestId('create-api-key-modal');
+    await expect(createModal).toBeVisible({ timeout: 5_000 });
+
+    // Enter the key name
+    const nameInput = page.getByTestId('api-key-name-input');
+    await nameInput.fill(API_KEY_NAME);
+
+    // Click Create button
+    const createButton = page.getByRole('button', { name: /^create$/i });
+    await createButton.click();
+
+    // Wait for the new key modal to appear with the generated key
+    const newKeyModal = page.getByTestId('new-api-key-modal');
+    await expect(newKeyModal).toBeVisible({ timeout: 10_000 });
+
+    // Capture the API key from the modal
+    const keyDisplay = newKeyModal.locator('.font-mono');
+    const apiKey = await keyDisplay.textContent();
+    expect(apiKey).toBeTruthy();
+    console.log(`Created API key: ${apiKey?.substring(0, 20)}...`);
+
+    // Close the modal
+    const closeButton = page.getByRole('button', { name: /close/i });
+    await closeButton.click();
+    await expect(newKeyModal).not.toBeVisible({ timeout: 5_000 });
+
+    // Take screenshot of API keys page
+    await page.screenshot({ path: 'test-results/screenshots/api-keys-created.png' });
+
+    // Test the API key by making a request to /api/v1/sandboxes/search
+    console.log('Testing API key with sandboxes search endpoint...');
+    const response = await request.get(`${baseURL}/api/v1/sandboxes/search`, {
+      headers: {
+        'X-Access-Token': apiKey!,
+      },
+    });
+
+    // Verify the response
+    expect(response.ok()).toBe(true);
+    const responseBody = await response.json();
+    console.log(`Sandboxes search response: ${JSON.stringify(responseBody).substring(0, 200)}...`);
+
+    // Verify we got at least 1 sandbox (the currently running one)
+    // Response format: { items: [], next_page_id: string | null }
+    expect(responseBody).toHaveProperty('items');
+    expect(Array.isArray(responseBody.items)).toBe(true);
+    expect(responseBody.items.length).toBeGreaterThanOrEqual(1);
+    console.log(`Found ${responseBody.items.length} sandbox(es) - API key works!`);
+
+    // Take screenshot after API test
+    await page.screenshot({ path: 'test-results/screenshots/api-key-test-complete.png' });
+  });
+
   test("should be able to start a conversation, send a prompt, and receive response @critical", async ({ page }) => {
     // Navigate to home
     await homePage.goto();
