@@ -36,6 +36,13 @@ def _file_store_key(automation_id: str) -> str:
     return f'{FILE_STORE_PREFIX}/{automation_id}/automation.py'
 
 
+def _paginate(rows: list, limit: int, id_attr: str = 'id') -> tuple[list, str | None]:
+    """Return (items, next_page_id) from an overfetched result set."""
+    if len(rows) > limit:
+        return rows[:limit], getattr(rows[limit], id_attr)
+    return rows, None
+
+
 def _automation_to_response(automation: Automation) -> AutomationResponse:
     return AutomationResponse(
         id=automation.id,
@@ -75,7 +82,7 @@ def _generate_and_validate_file(
     repository: str | None = None,
     branch: str | None = None,
 ) -> tuple[str, dict]:
-    """Generate automation file, extract and validate config.
+    """Generate automation file, extract config, validate, and store prompt in config.
 
     Returns (file_content, config_dict).
     Raises HTTPException on validation failure.
@@ -96,6 +103,8 @@ def _generate_and_validate_file(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=f'Invalid automation config: {e}',
         )
+    # Store prompt in config so DB is the source of truth (not the file)
+    config['prompt'] = prompt
     return file_content, config
 
 
@@ -186,13 +195,9 @@ async def search_automations(
         result = await session.execute(query)
         rows = list(result.scalars().all())
 
-    next_page_id: str | None = None
-    if len(rows) > limit:
-        next_page_id = rows[limit].id
-        rows = rows[:limit]
-
+    items, next_page_id = _paginate(rows, limit)
     return PaginatedAutomationsResponse(
-        items=[_automation_to_response(a) for a in rows],
+        items=[_automation_to_response(a) for a in items],
         total=total,
         next_page_id=next_page_id,
     )
@@ -242,7 +247,6 @@ async def update_automation(
                 detail='Automation not found',
             )
 
-        # Collect non-None updates
         updates = {
             k: v
             for k, v in request.model_dump(exclude_unset=True).items()
@@ -256,6 +260,7 @@ async def update_automation(
             current_config = automation.config or {}
             current_triggers = current_config.get('triggers', {}).get('cron', {})
 
+            # Merge: use request values if provided, else fall back to current config
             new_name = updates.get('name', automation.name)
             new_schedule = updates.get(
                 'schedule', current_triggers.get('schedule', '')
@@ -263,19 +268,7 @@ async def update_automation(
             new_timezone = updates.get(
                 'timezone', current_triggers.get('timezone', 'UTC')
             )
-
-            if 'prompt' in updates:
-                prompt = updates['prompt']
-            else:
-                try:
-                    existing_content = file_store.read(automation.file_store_key)
-                    prompt = _extract_prompt_from_file(existing_content)
-                except Exception:
-                    logger.warning(
-                        'Could not read existing automation file for prompt extraction',
-                        extra={'automation_id': automation_id},
-                    )
-                    prompt = ''
+            prompt = updates.get('prompt', current_config.get('prompt', ''))
 
             file_content, config = _generate_and_validate_file(
                 name=new_name,
@@ -296,7 +289,6 @@ async def update_automation(
             automation.config = config
             automation.name = new_name
 
-        # Apply simple field updates
         if 'name' in updates and not needs_regen:
             automation.name = updates['name']
         if 'enabled' in updates:
@@ -306,34 +298,6 @@ async def update_automation(
         await session.refresh(automation)
 
     return _automation_to_response(automation)
-
-
-def _extract_prompt_from_file(file_content: str) -> str:
-    """Best-effort extraction of the prompt from a generated automation file.
-
-    Looks for `conversation.send_message(...)` in the file.
-    """
-    import ast
-
-    try:
-        tree = ast.parse(file_content)
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Expr)
-                and isinstance(node.value, ast.Call)
-                and isinstance(node.value.func, ast.Attribute)
-                and node.value.func.attr == 'send_message'
-                and node.value.args
-            ):
-                arg = node.value.args[0]
-                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                    return arg.value
-                if isinstance(arg, ast.JoinedStr):
-                    # f-string — return a reconstructed version
-                    return ast.unparse(arg)
-    except Exception:
-        pass
-    return ''
 
 
 @automation_router.delete('/{automation_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -456,13 +420,9 @@ async def list_automation_runs(
         result = await session.execute(query)
         rows = list(result.scalars().all())
 
-    next_page_id: str | None = None
-    if len(rows) > limit:
-        next_page_id = rows[limit].id
-        rows = rows[:limit]
-
+    items, next_page_id = _paginate(rows, limit)
     return PaginatedRunsResponse(
-        items=[_run_to_response(r) for r in rows],
+        items=[_run_to_response(r) for r in items],
         total=total,
         next_page_id=next_page_id,
     )
