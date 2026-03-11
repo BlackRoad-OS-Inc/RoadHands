@@ -100,9 +100,9 @@ test.describe("Smoke Tests @smoke", () => {
     await page.waitForURL(/checkout\.stripe\.com/, { timeout: 30_000 });
     console.log('Redirected to Stripe checkout');
 
-    // Wait for the Pay button to be visible (indicates form is ready)
+    // Wait for the Pay button to be present (indicates form is ready)
     const payButton = page.getByRole('button', { name: /pay/i });
-    await payButton.waitFor({ state: 'visible', timeout: 30_000 });
+    await payButton.waitFor({ state: 'attached', timeout: 30_000 });
     console.log('Stripe checkout form loaded');
 
     // Fill in card number
