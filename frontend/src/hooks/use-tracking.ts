@@ -110,9 +110,9 @@ export const useTracking = () => {
     orgSize,
     useCase,
   }: {
-    role: string | string[];
-    orgSize: string | string[];
-    useCase: string | string[];
+    role?: string;
+    orgSize?: string;
+    useCase?: string[];
   }) => {
     posthog.capture("onboarding_completed", {
       role,

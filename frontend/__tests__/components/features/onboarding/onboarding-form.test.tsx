@@ -8,6 +8,7 @@ import OnboardingForm from "#/routes/onboarding-form";
 const mockMutate = vi.fn();
 const mockNavigate = vi.fn();
 const mockUseConfig = vi.fn();
+const mockTrackOnboardingCompleted = vi.fn();
 
 vi.mock("react-router", async (importOriginal) => {
   const original = await importOriginal<typeof import("react-router")>();
@@ -27,6 +28,12 @@ vi.mock("#/hooks/query/use-config", () => ({
   useConfig: () => mockUseConfig(),
 }));
 
+vi.mock("#/hooks/use-tracking", () => ({
+  useTracking: () => ({
+    trackOnboardingCompleted: mockTrackOnboardingCompleted,
+  }),
+}));
+
 const renderOnboardingForm = () => {
   return renderWithProviders(
     <MemoryRouter>
@@ -39,6 +46,7 @@ describe("OnboardingForm", () => {
   beforeEach(() => {
     mockMutate.mockClear();
     mockNavigate.mockClear();
+    mockTrackOnboardingCompleted.mockClear();
     // Default to saas mode
     mockUseConfig.mockReturnValue({
       data: { app_mode: "saas" },
@@ -136,6 +144,28 @@ describe("OnboardingForm", () => {
         use_case: ["new_features"],
         role: "software_engineer",
       },
+    });
+  });
+
+  it("should track onboarding completion to PostHog in SaaS mode", async () => {
+    const user = userEvent.setup();
+    renderOnboardingForm();
+
+    // Complete the full SaaS onboarding flow
+    await user.click(screen.getByTestId("step-option-org_2_10"));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-new_features"));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-software_engineer"));
+    await user.click(screen.getByRole("button", { name: /finish/i }));
+
+    expect(mockTrackOnboardingCompleted).toHaveBeenCalledTimes(1);
+    expect(mockTrackOnboardingCompleted).toHaveBeenCalledWith({
+      role: "software_engineer",
+      orgSize: "org_2_10",
+      useCase: ["new_features"],
     });
   });
 
@@ -292,6 +322,7 @@ describe("OnboardingForm - OSS Mode", () => {
   beforeEach(() => {
     mockMutate.mockClear();
     mockNavigate.mockClear();
+    mockTrackOnboardingCompleted.mockClear();
     mockUseConfig.mockReturnValue({
       data: { app_mode: "oss" },
       isLoading: false,
@@ -404,6 +435,28 @@ describe("OnboardingForm - OSS Mode", () => {
         use_case: ["new_features", "fixing_bugs"],
       },
     });
+  });
+
+  it("should NOT track onboarding completion to PostHog in OSS mode", async () => {
+    const user = userEvent.setup();
+    renderOnboardingForm();
+
+    // Complete the full OSS onboarding flow
+    await user.type(screen.getByTestId("step-input-org_name"), "Acme Corp");
+    await user.type(screen.getByTestId("step-input-org_domain"), "acme.com");
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-org_11_50"));
+    await user.click(screen.getByRole("button", { name: /next/i }));
+
+    await user.click(screen.getByTestId("step-option-new_features"));
+    await user.click(screen.getByRole("button", { name: /finish/i }));
+
+    // Verify onboarding was submitted
+    expect(mockMutate).toHaveBeenCalledTimes(1);
+
+    // Verify PostHog tracking was NOT called for OSS mode
+    expect(mockTrackOnboardingCompleted).not.toHaveBeenCalled();
   });
 
   it("should not show role step in OSS mode", async () => {

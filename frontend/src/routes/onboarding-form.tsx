@@ -107,14 +107,18 @@ function OnboardingForm() {
     if (isLastStep) {
       const allSelections = { ...selections, ...inputValues };
       submitOnboarding({ selections: allSelections });
-      try {
-        trackOnboardingCompleted({
-          role: selections.role,
-          orgSize: selections.org_size,
-          useCase: selections.use_case,
-        });
-      } catch (error) {
-        console.error("Failed to track onboarding:", error);
+
+      // Only track onboarding for SaaS users
+      if (appMode === "saas") {
+        try {
+          trackOnboardingCompleted({
+            role: selections.role as string | undefined,
+            orgSize: selections.org_size as string | undefined,
+            useCase: selections.use_case as string[] | undefined,
+          });
+        } catch (error) {
+          console.error("Failed to track onboarding:", error);
+        }
       }
     } else {
       setCurrentStepIndex((prev) => prev + 1);
