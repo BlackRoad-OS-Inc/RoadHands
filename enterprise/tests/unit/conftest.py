@@ -20,7 +20,6 @@ from sqlalchemy.orm import sessionmaker
 from testcontainers.postgres import PostgresContainer
 from xdist import is_xdist_controller
 
-# Models used by add_minimal_fixtures or directly by conftest.
 from storage.api_key import ApiKey  # noqa: F401
 from storage.base import Base
 from storage.billing_session import BillingSession
