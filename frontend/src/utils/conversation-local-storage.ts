@@ -23,6 +23,8 @@ export interface ConversationState {
   unpinnedTabs: string[];
   conversationMode: ConversationMode;
   subConversationTaskId: string | null;
+  draftMessage: string | null;
+  draftTimestamp: number | null;
 }
 
 const DEFAULT_CONVERSATION_STATE: ConversationState = {
@@ -31,6 +33,8 @@ const DEFAULT_CONVERSATION_STATE: ConversationState = {
   unpinnedTabs: [],
   conversationMode: "code",
   subConversationTaskId: null,
+  draftMessage: null,
+  draftTimestamp: null,
 };
 
 /**

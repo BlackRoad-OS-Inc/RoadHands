@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import {
   clearConversationLocalStorage,
   getConversationState,
@@ -227,6 +227,120 @@ describe("conversation localStorage utilities", () => {
       const parsed = JSON.parse(stored!);
 
       expect(parsed.subConversationTaskId).toBeNull();
+    });
+  });
+
+  describe("draft message persistence", () => {
+    it("returns default state with draftMessage as null when no state exists", () => {
+      const conversationId = "conv-123";
+      const state = getConversationState(conversationId);
+
+      expect(state.draftMessage).toBeNull();
+      expect(state.draftTimestamp).toBeNull();
+    });
+
+    it("retrieves draftMessage from localStorage when it exists", () => {
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      const timestamp = Date.now();
+
+      localStorage.setItem(
+        consolidatedKey,
+        JSON.stringify({
+          draftMessage: "My draft message",
+          draftTimestamp: timestamp,
+        }),
+      );
+
+      const state = getConversationState(conversationId);
+
+      expect(state.draftMessage).toBe("My draft message");
+      expect(state.draftTimestamp).toBe(timestamp);
+    });
+
+    it("persists draftMessage and draftTimestamp to localStorage", () => {
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      const timestamp = Date.now();
+
+      setConversationState(conversationId, {
+        draftMessage: "Test draft",
+        draftTimestamp: timestamp,
+      });
+
+      const stored = localStorage.getItem(consolidatedKey);
+      expect(stored).not.toBeNull();
+
+      const parsed = JSON.parse(stored!);
+      expect(parsed.draftMessage).toBe("Test draft");
+      expect(parsed.draftTimestamp).toBe(timestamp);
+    });
+
+    it("merges draftMessage with existing state", () => {
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+
+      // Set initial state
+      localStorage.setItem(
+        consolidatedKey,
+        JSON.stringify({
+          selectedTab: "changes",
+          rightPanelShown: false,
+        }),
+      );
+
+      // Update only draftMessage
+      const timestamp = Date.now();
+      setConversationState(conversationId, {
+        draftMessage: "New draft",
+        draftTimestamp: timestamp,
+      });
+
+      const stored = localStorage.getItem(consolidatedKey);
+      const parsed = JSON.parse(stored!);
+
+      expect(parsed.draftMessage).toBe("New draft");
+      expect(parsed.draftTimestamp).toBe(timestamp);
+      expect(parsed.selectedTab).toBe("changes");
+      expect(parsed.rightPanelShown).toBe(false);
+    });
+
+    it("clears draftMessage when set to null", () => {
+      const conversationId = "conv-123";
+      const consolidatedKey = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+
+      // Set initial state with draft
+      localStorage.setItem(
+        consolidatedKey,
+        JSON.stringify({
+          draftMessage: "Existing draft",
+          draftTimestamp: Date.now(),
+        }),
+      );
+
+      // Clear the draft
+      setConversationState(conversationId, {
+        draftMessage: null,
+        draftTimestamp: null,
+      });
+
+      const stored = localStorage.getItem(consolidatedKey);
+      const parsed = JSON.parse(stored!);
+
+      expect(parsed.draftMessage).toBeNull();
+      expect(parsed.draftTimestamp).toBeNull();
+    });
+
+    it("does not persist draft for task conversation IDs", () => {
+      const conversationId = "task-123";
+
+      setConversationState(conversationId, {
+        draftMessage: "Should not persist",
+        draftTimestamp: Date.now(),
+      });
+
+      const key = `${LOCAL_STORAGE_KEYS.CONVERSATION_STATE}-${conversationId}`;
+      expect(localStorage.getItem(key)).toBeNull();
     });
   });
 });

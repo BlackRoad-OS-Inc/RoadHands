@@ -10,6 +10,8 @@ import { ChatInputGrip } from "./components/chat-input-grip";
 import { ChatInputContainer } from "./components/chat-input-container";
 import { HiddenFileInput } from "./components/hidden-file-input";
 import { useConversationStore } from "#/stores/conversation-store";
+import { useActiveConversation } from "#/hooks/query/use-active-conversation";
+import { getTextContent } from "./utils/chat-input.utils";
 
 export interface CustomChatInputProps {
   disabled?: boolean;
@@ -41,6 +43,9 @@ export function CustomChatInput({
     setSubmittedMessage,
   } = useConversationStore();
 
+  const { data: conversation } = useActiveConversation();
+  const conversationId = conversation?.conversation_id || null;
+
   // Disable input when conversation is stopped
   const isConversationStopped = conversationStatus === "STOPPED";
   const isDisabled = disabled || isConversationStopped;
@@ -60,7 +65,9 @@ export function CustomChatInput({
     messageToSend,
     checkIsContentEmpty,
     clearEmptyContentHandler,
-  } = useChatInputLogic();
+    handleDraftChange,
+    clearDraft,
+  } = useChatInputLogic({ conversationId });
 
   const {
     fileInputRef,
@@ -93,6 +100,7 @@ export function CustomChatInput({
     smartResize,
     onSubmit,
     resetManualResize,
+    clearDraft,
   );
 
   const { handleInput, handlePaste, handleKeyDown, handleBlur, handleFocus } =
@@ -158,6 +166,10 @@ export function CustomChatInput({
           onInput={() => {
             handleInput();
             updateSlashMenu();
+            // Persist draft on every input change
+            if (chatInputRef.current) {
+              handleDraftChange(getTextContent(chatInputRef.current));
+            }
           }}
           onPaste={handlePaste}
           onKeyDown={(e) => {
