@@ -24,6 +24,7 @@ from storage.database import session_maker
 from storage.stored_conversation_metadata_saas import StoredConversationMetadataSaas
 
 from openhands.server.shared import conversation_manager
+from openhands.utils.log_deduper import record_periodic_lookup_summary
 
 event_webhook_router = APIRouter(prefix='/event-webhook')
 
@@ -80,7 +81,11 @@ async def _process_batch_operations_background(
             # If the conversation id changes, then we must recheck the session_api_key
             if conversation_id != prev_conversation_id:
                 user_id = _get_user_id(conversation_id)
-                session_api_key = await _get_session_api_key(user_id, conversation_id)
+                session_api_key = await _get_session_api_key(
+                    user_id,
+                    conversation_id,
+                    lookup_source='event_webhook_batch_session_api_key',
+                )
                 prev_conversation_id = conversation_id
                 if session_api_key != x_session_api_key:
                     logger.error(
@@ -178,7 +183,11 @@ async def on_write(
     user_id = _get_user_id(conversation_id)
 
     # Check the session API key to make sure this is from the correct conversation
-    session_api_key = await _get_session_api_key(user_id, conversation_id)
+    session_api_key = await _get_session_api_key(
+        user_id,
+        conversation_id,
+        lookup_source='event_webhook_write_session_api_key',
+    )
     if session_api_key != x_session_api_key:
         return Response(status_code=status.HTTP_403_FORBIDDEN)
 
@@ -240,7 +249,21 @@ def _get_user_id(conversation_id: str) -> str:
         return str(conversation_metadata_saas.user_id)
 
 
-async def _get_session_api_key(user_id: str, conversation_id: str) -> str | None:
+async def _get_session_api_key(
+    user_id: str,
+    conversation_id: str,
+    lookup_source: str = 'event_webhook_session_api_key',
+) -> str | None:
+    summary = record_periodic_lookup_summary(
+        ('legacy_v0_lookup_entrypoint', lookup_source),
+        conversation_id,
+        user_id,
+    )
+    if summary:
+        logger.info(
+            'legacy_v0_lookup_entrypoint_summary',
+            extra={'lookup_source': lookup_source, **summary},
+        )
     agent_loop_info = await conversation_manager.get_agent_loop_info(
         user_id, filter_to_sids={conversation_id}
     )

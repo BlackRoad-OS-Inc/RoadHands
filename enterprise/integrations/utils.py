@@ -21,6 +21,7 @@ from openhands.events.event_store_abc import EventStoreABC
 from openhands.events.observation.agent import AgentStateChangedObservation
 from openhands.integrations.service_types import Repository
 from openhands.storage.data_models.conversation_status import ConversationStatus
+from openhands.utils.log_deduper import record_periodic_lookup_summary
 
 if TYPE_CHECKING:
     from openhands.server.conversation_manager.conversation_manager import (
@@ -366,6 +367,15 @@ def extract_summary_from_event_store(
 async def get_event_store_from_conversation_manager(
     conversation_manager: ConversationManager, conversation_id: str
 ) -> EventStoreABC:
+    summary = record_periodic_lookup_summary(
+        ('legacy_v0_lookup_entrypoint', 'integration_get_event_store'),
+        conversation_id,
+    )
+    if summary:
+        logger.info(
+            'legacy_v0_lookup_entrypoint_summary',
+            extra={'lookup_source': 'integration_get_event_store', **summary},
+        )
     agent_loop_infos = await conversation_manager.get_agent_loop_info(
         filter_to_sids={conversation_id}
     )

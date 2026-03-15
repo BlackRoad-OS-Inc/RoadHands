@@ -180,6 +180,16 @@ Each integration follows a consistent pattern with service classes, storage mode
 - Use `patch` with correct import paths (e.g., `telemetry.registry.logger` not `enterprise.telemetry.registry.logger`)
 - Test both success and failure scenarios with proper error handling
 
+### Legacy V0 runtime lookup spikes
+
+- Production currently points `CONVERSATION_MANAGER_CLASS` at `server.saas_nested_conversation_manager.SaasNestedConversationManager`, so unexpected runtime-api `GET /sessions/{sid}` bursts are most likely coming from legacy V0 conversation-manager lookups rather than V1 app-server paths.
+- For investigation of legacy lookup spikes, the most useful attribution points are:
+  - `enterprise/server/saas_nested_conversation_manager.py` singleton `get_agent_loop_info(filter_to_sids={sid})` and direct `_get_runtime(sid)` callers
+  - `enterprise/server/routes/event_webhook.py` session API key checks
+  - `enterprise/integrations/utils.py` event-store lookups
+  - `openhands/server/routes/manage_conversations.py` legacy `GET /api/conversations/{conversation_id}`
+- A lightweight shared helper lives at `openhands/utils/log_deduper.py` for periodic structured summary logs, which is safer than logging every lookup during an incident.
+
 **Coverage Goals:**
 - Aim for 90%+ test coverage on new enterprise modules
 - Focus on critical business logic and error handling paths

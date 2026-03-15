@@ -61,6 +61,7 @@ from openhands.storage.locations import (
 )
 from openhands.utils.http_session import httpx_verify_option
 from openhands.utils.import_utils import get_impl
+from openhands.utils.log_deduper import record_periodic_lookup_summary
 from openhands.utils.shutdown_listener import should_continue
 from openhands.utils.utils import create_registry_and_conversation_stats
 
@@ -172,8 +173,23 @@ class SaasNestedConversationManager(ConversationManager):
 
         return conversation_ids
 
+    def _maybe_log_runtime_lookup_summary(
+        self, lookup_source: str, sid: str, user_id: str | None = None
+    ) -> None:
+        summary = record_periodic_lookup_summary(
+            ('saas_nested_runtime_lookup', lookup_source),
+            sid,
+            user_id,
+        )
+        if summary:
+            logger.info(
+                'saas_nested_runtime_lookup_summary',
+                extra={'lookup_source': lookup_source, **summary},
+            )
+
     async def is_agent_loop_running(self, sid: str) -> bool:
         """Check if an agent loop is running for the given session ID."""
+        self._maybe_log_runtime_lookup_summary('is_agent_loop_running', sid)
         runtime = await self._get_runtime(sid)
         if runtime is None:
             return False
@@ -200,6 +216,7 @@ class SaasNestedConversationManager(ConversationManager):
         key = self._get_redis_conversation_key(user_id, sid)
         starting = await redis.get(key)
 
+        self._maybe_log_runtime_lookup_summary('maybe_start_agent_loop', sid, user_id)
         runtime = await self._get_runtime(sid)
 
         nested_url = None
@@ -576,6 +593,7 @@ class SaasNestedConversationManager(ConversationManager):
         raise ValueError('unsupported_operation')
 
     async def send_event_to_conversation(self, sid: str, data: dict):
+        self._maybe_log_runtime_lookup_summary('send_event_to_conversation', sid)
         runtime = await self._get_runtime(sid)
         if runtime is None:
             raise ValueError(f'no_such_conversation:{sid}')
@@ -595,6 +613,7 @@ class SaasNestedConversationManager(ConversationManager):
 
     async def close_session(self, sid: str):
         logger.info('close_session', extra={'sid': sid})
+        self._maybe_log_runtime_lookup_summary('close_session', sid)
         runtime = await self._get_runtime(sid)
         if runtime is None:
             logger.info('no_session_to_close', extra={'sid': sid})
@@ -708,7 +727,11 @@ class SaasNestedConversationManager(ConversationManager):
         # Get running agent loops from runtime api
         if filter_to_sids and len(filter_to_sids) == 1:
             runtimes = []
-            runtime = await self._get_runtime(next(iter(filter_to_sids)))
+            sid = next(iter(filter_to_sids))
+            self._maybe_log_runtime_lookup_summary(
+                'get_agent_loop_info_singleton', sid, user_id
+            )
+            runtime = await self._get_runtime(sid)
             if runtime:
                 runtimes.append(runtime)
         else:
@@ -1128,6 +1151,8 @@ class SaasNestedConversationManager(ConversationManager):
             ValueError: If the conversation is not running.
             httpx.HTTPError: If there's an error communicating with the nested runtime.
         """
+        self._maybe_log_runtime_lookup_summary('list_files', sid)
+
         runtime = await self._get_runtime(sid)
         if runtime is None or runtime.get('status') != 'running':
             raise ValueError(f'Conversation {sid} is not running')
@@ -1146,7 +1171,9 @@ class SaasNestedConversationManager(ConversationManager):
             ValueError: If the conversation is not running.
             httpx.HTTPError: If there's an error communicating with the nested runtime.
         """
+        self._maybe_log_runtime_lookup_summary('select_file', sid)
         runtime = await self._get_runtime(sid)
+
         if runtime is None or runtime.get('status') != 'running':
             raise ValueError(f'Conversation {sid} is not running')
 
@@ -1166,6 +1193,7 @@ class SaasNestedConversationManager(ConversationManager):
             ValueError: If the conversation is not running.
             httpx.HTTPError: If there's an error communicating with the nested runtime.
         """
+        self._maybe_log_runtime_lookup_summary('upload_files', sid)
         runtime = await self._get_runtime(sid)
         if runtime is None or runtime.get('status') != 'running':
             raise ValueError(f'Conversation {sid} is not running')

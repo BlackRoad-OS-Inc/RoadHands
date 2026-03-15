@@ -625,7 +625,9 @@ async def refresh_tokens(
 ) -> TokenResponse:
     """Return the latest token for a given provider."""
     user_id = _get_user_id(sid)
-    session_api_key = await _get_session_api_key(user_id, sid)
+    session_api_key = await _get_session_api_key(
+        user_id, sid, lookup_source='auth_refresh_tokens'
+    )
     if session_api_key != x_session_api_key:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail='Forbidden')
 

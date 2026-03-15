@@ -112,6 +112,7 @@ from openhands.storage.settings.settings_store import SettingsStore
 from openhands.utils.async_utils import wait_all
 from openhands.utils.conversation_summary import get_default_conversation_title
 from openhands.utils.environment import get_effective_llm_base_url
+from openhands.utils.log_deduper import record_periodic_lookup_summary
 
 app = APIRouter(prefix='/api', dependencies=get_dependencies())
 app_conversation_service_dependency = depends_app_conversation_service()
@@ -533,6 +534,18 @@ async def get_conversation(
         num_connections = len(
             await conversation_manager.get_connections(filter_to_sids={conversation_id})
         )
+        summary = record_periodic_lookup_summary(
+            ('legacy_v0_lookup_entrypoint', 'manage_conversations_get_conversation'),
+            conversation_id,
+        )
+        if summary:
+            logger.info(
+                'legacy_v0_lookup_entrypoint_summary',
+                extra={
+                    'lookup_source': 'manage_conversations_get_conversation',
+                    **summary,
+                },
+            )
         agent_loop_infos = await conversation_manager.get_agent_loop_info(
             filter_to_sids={conversation_id}
         )
