@@ -118,6 +118,9 @@ class SaasSettingsStore(SettingsStore):
         kwargs['sdk_settings_values'] = org_member.sdk_settings_values or {}
         if org.v1_enabled is None:
             kwargs['v1_enabled'] = True
+        # Apply default if sandbox_grouping_strategy is None in the database
+        if kwargs.get('sandbox_grouping_strategy') is None:
+            kwargs.pop('sandbox_grouping_strategy', None)
 
         settings = Settings(**kwargs)
         return settings

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from enum import Enum
 from typing import Annotated, Any
 
 from pydantic import (
@@ -34,6 +35,20 @@ def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) ->
     for part in parts[:-1]:
         current = current.setdefault(part, {})
     current[parts[-1]] = value
+
+
+class SandboxGroupingStrategy(str, Enum):
+    """Strategy for grouping conversations within sandboxes."""
+
+    NO_GROUPING = 'NO_GROUPING'  # Default - each conversation gets its own sandbox
+    GROUP_BY_NEWEST = 'GROUP_BY_NEWEST'  # Add to the most recently created sandbox
+    LEAST_RECENTLY_USED = (
+        'LEAST_RECENTLY_USED'  # Add to the least recently used sandbox
+    )
+    FEWEST_CONVERSATIONS = (
+        'FEWEST_CONVERSATIONS'  # Add to sandbox with fewest conversations
+    )
+    ADD_TO_ANY = 'ADD_TO_ANY'  # Add to any available sandbox (first found)
 
 
 class Settings(BaseModel):
@@ -72,6 +87,9 @@ class Settings(BaseModel):
     git_user_email: str | None = None
     v1_enabled: bool = True
     sdk_settings_values: dict[str, Any] = Field(default_factory=dict)
+    sandbox_grouping_strategy: SandboxGroupingStrategy = (
+        SandboxGroupingStrategy.NO_GROUPING
+    )
 
     model_config = ConfigDict(
         validate_assignment=True,

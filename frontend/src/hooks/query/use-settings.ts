@@ -20,6 +20,9 @@ const getSettingsQueryFn = async (): Promise<Settings> => {
     v1_enabled: settings.v1_enabled ?? DEFAULT_SETTINGS.v1_enabled,
     sdk_settings_values:
       settings.sdk_settings_values ?? DEFAULT_SETTINGS.sdk_settings_values,
+    sandbox_grouping_strategy:
+      settings.sandbox_grouping_strategy ??
+      DEFAULT_SETTINGS.sandbox_grouping_strategy,
   };
 };
 
