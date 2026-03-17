@@ -6,7 +6,6 @@
 # Unless you are working on deprecation, please avoid extending this legacy file and consult the V1 codepaths above.
 # Tag: Legacy-V0
 # This module belongs to the old V0 web server. The V1 application server lives under openhands/app_server/.
-import importlib
 import os
 from typing import Any
 
@@ -43,16 +42,15 @@ LITE_LLM_API_URL = os.environ.get(
 def _get_sdk_settings_schema() -> dict[str, Any] | None:
     """Return the SDK settings schema when the SDK package is installed.
 
-    This lets the legacy V0 settings API expose SDK-owned settings fields while
-    remaining compatible with environments that do not have ``openhands-sdk``
-    available yet.
+    Uses ``OpenHandsAgentSettings`` which extends the base SDK
+    ``AgentSettings`` with OpenHands-specific sections (e.g. *security*).
     """
     try:
-        settings_module = importlib.import_module('openhands.sdk.settings')
-    except ModuleNotFoundError:
+        from openhands.storage.data_models.settings import OpenHandsAgentSettings
+    except Exception:
         return None
 
-    return settings_module.AgentSettings.export_schema().model_dump(mode='json')
+    return OpenHandsAgentSettings.export_schema().model_dump(mode='json')
 
 
 def _get_sdk_field_keys(schema: dict[str, Any] | None) -> set[str]:
@@ -78,10 +76,32 @@ def _get_sdk_secret_field_keys(schema: dict[str, Any] | None) -> set[str]:
     }
 
 
+# Maps dotted SDK keys to the corresponding flat Settings attribute.
+# When the user saves a value via the schema-driven UI the dotted key
+# lands in ``sdk_settings_values``; this map ensures the same value is
+# also written to the legacy flat field so existing consumers (session
+# init, security-analyzer setup, etc.) keep working.
+_SDK_TO_FLAT_SETTINGS: dict[str, str] = {
+    'security.confirmation_mode': 'confirmation_mode',
+    'security.security_analyzer': 'security_analyzer',
+}
+
+
 def _extract_sdk_settings_values(
     settings: Settings, schema: dict[str, Any] | None
 ) -> dict[str, Any]:
     values = dict(settings.sdk_settings_values)
+
+    # Seed dotted keys from flat Settings fields so existing values are
+    # visible in the schema-driven UI even if they were never set via the
+    # SDK path.  We only fill when the dotted key is absent to avoid
+    # overwriting explicit SDK-path values.
+    for dotted_key, flat_attr in _SDK_TO_FLAT_SETTINGS.items():
+        if dotted_key not in values:
+            flat_value = getattr(settings, flat_attr, None)
+            if flat_value is not None:
+                values[dotted_key] = flat_value
+
     for field_key in _get_sdk_secret_field_keys(schema):
         values[field_key] = None
     return values
@@ -104,6 +124,11 @@ def _apply_settings_payload(
 
         if key in sdk_field_keys and key not in secret_field_keys:
             sdk_settings_values[key] = value
+
+    # Sync dotted SDK security values → flat Settings fields.
+    for dotted_key, flat_attr in _SDK_TO_FLAT_SETTINGS.items():
+        if dotted_key in sdk_settings_values:
+            setattr(settings, flat_attr, sdk_settings_values[dotted_key])
 
     settings.sdk_settings_values = sdk_settings_values
     return settings

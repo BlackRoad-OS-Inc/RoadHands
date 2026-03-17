@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import (
     BaseModel,
@@ -18,7 +18,65 @@ from openhands.core.config.llm_config import LLMConfig
 from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.utils import load_openhands_config
 from openhands.sdk.settings import AgentSettings
+from openhands.sdk.settings_metadata import (
+    SETTINGS_METADATA_KEY,
+    SETTINGS_SECTION_METADATA_KEY,
+    SettingProminence,
+    SettingsFieldMetadata,
+    SettingsSectionMetadata,
+)
 from openhands.storage.data_models.secrets import Secrets
+
+# ---------------------------------------------------------------------------
+# Extended settings sections that live in OpenHands (not yet in the SDK)
+# ---------------------------------------------------------------------------
+
+SecurityAnalyzerType = Literal['none', 'llm']
+
+
+class SecuritySettings(BaseModel):
+    """Security-related agent settings."""
+
+    confirmation_mode: bool = Field(
+        default=False,
+        description='Require human confirmation before executing actions.',
+        json_schema_extra={
+            SETTINGS_METADATA_KEY: SettingsFieldMetadata(
+                label='Confirmation mode',
+                prominence=SettingProminence.CRITICAL,
+            ).model_dump()
+        },
+    )
+    security_analyzer: SecurityAnalyzerType | None = Field(
+        default=None,
+        description='Security analyzer used to evaluate actions.',
+        json_schema_extra={
+            SETTINGS_METADATA_KEY: SettingsFieldMetadata(
+                label='Security analyzer',
+                prominence=SettingProminence.MAJOR,
+            ).model_dump()
+        },
+    )
+
+
+class OpenHandsAgentSettings(AgentSettings):
+    """``AgentSettings`` extended with OpenHands-specific sections.
+
+    Sections defined here (e.g. *security*) follow the same metadata
+    conventions as the SDK so that ``export_schema()`` includes them
+    automatically.
+    """
+
+    security: SecuritySettings = Field(
+        default_factory=SecuritySettings,
+        description='Security settings for the agent.',
+        json_schema_extra={
+            SETTINGS_SECTION_METADATA_KEY: SettingsSectionMetadata(
+                key='security',
+                label='Security',
+            ).model_dump()
+        },
+    )
 
 
 def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) -> None:

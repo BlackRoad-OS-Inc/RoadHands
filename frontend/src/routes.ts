@@ -13,7 +13,6 @@ export default [
     route("accept-tos", "routes/accept-tos.tsx"),
     route("settings", "routes/settings.tsx", [
       index("routes/llm-settings.tsx"),
-      route("general", "routes/general-settings.tsx"),
       route("security", "routes/security-settings.tsx"),
       route("condenser", "routes/condenser-settings.tsx"),
       route("critic", "routes/critic-settings.tsx"),

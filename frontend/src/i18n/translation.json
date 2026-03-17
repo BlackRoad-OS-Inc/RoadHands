@@ -2191,22 +2191,6 @@
     "de": "Kritiker",
     "uk": "Критик"
   },
-  "SETTINGS$NAV_GENERAL": {
-    "en": "General",
-    "ja": "一般",
-    "zh-CN": "通用",
-    "zh-TW": "通用",
-    "ko-KR": "일반",
-    "no": "Generelt",
-    "it": "Generale",
-    "pt": "Geral",
-    "es": "General",
-    "ar": "عام",
-    "fr": "Général",
-    "tr": "Genel",
-    "de": "Allgemein",
-    "uk": "Загальні"
-  },
   "SETTINGS$NAV_LLM": {
     "en": "LLM",
     "ja": "LLM",

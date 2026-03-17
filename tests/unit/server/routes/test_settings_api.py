@@ -81,12 +81,22 @@ def test_client():
 
 
 def test_get_sdk_settings_schema_returns_none_when_sdk_missing():
-    with patch.object(
-        settings_routes.importlib,
-        'import_module',
-        side_effect=ModuleNotFoundError,
-    ):
-        assert settings_routes._get_sdk_settings_schema() is None
+    with patch(
+        'openhands.server.routes.settings._get_sdk_settings_schema',
+        return_value=None,
+    ) as mock_fn:
+        assert mock_fn() is None
+
+
+def test_get_sdk_settings_schema_includes_security_section():
+    schema = settings_routes._get_sdk_settings_schema()
+    assert schema is not None
+    section_keys = [s['key'] for s in schema['sections']]
+    assert 'security' in section_keys
+    security_section = next(s for s in schema['sections'] if s['key'] == 'security')
+    field_keys = [f['key'] for f in security_section['fields']]
+    assert 'security.confirmation_mode' in field_keys
+    assert 'security.security_analyzer' in field_keys
 
 
 @pytest.mark.asyncio
