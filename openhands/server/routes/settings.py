@@ -30,7 +30,7 @@ from openhands.server.user_auth import (
     get_user_settings,
     get_user_settings_store,
 )
-from openhands.storage.data_models.settings import SDK_LEGACY_FIELD_MAP, Settings
+from openhands.storage.data_models.settings import Settings
 from openhands.storage.secrets.secrets_store import SecretsStore
 from openhands.storage.settings.settings_store import SettingsStore
 from openhands.utils.llm import get_provider_api_base, is_openhands_model
@@ -82,21 +82,8 @@ def _extract_sdk_settings_values(
     settings: Settings, schema: dict[str, Any] | None
 ) -> dict[str, Any]:
     values = dict(settings.sdk_settings_values)
-    secret_field_keys = _get_sdk_secret_field_keys(schema)
-
-    for field_key in _get_sdk_field_keys(schema):
-        if field_key in secret_field_keys:
-            values[field_key] = None
-            continue
-        if field_key in values:
-            continue
-
-        legacy_field = SDK_LEGACY_FIELD_MAP.get(field_key)
-        if legacy_field is None or legacy_field not in Settings.model_fields:
-            continue
-
-        values[field_key] = getattr(settings, legacy_field)
-
+    for field_key in _get_sdk_secret_field_keys(schema):
+        values[field_key] = None
     return values
 
 
@@ -112,11 +99,8 @@ def _apply_settings_payload(
     sdk_settings_values = dict(settings.sdk_settings_values)
 
     for key, value in payload.items():
-        legacy_field = SDK_LEGACY_FIELD_MAP.get(key)
         if key in Settings.model_fields:
             setattr(settings, key, value)
-        elif legacy_field in Settings.model_fields:
-            setattr(settings, legacy_field, value)
 
         if key in sdk_field_keys and key not in secret_field_keys:
             sdk_settings_values[key] = value

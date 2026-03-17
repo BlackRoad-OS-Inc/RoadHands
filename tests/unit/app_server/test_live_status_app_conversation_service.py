@@ -134,14 +134,13 @@ class TestLiveStatusAppConversationService:
         self.service._load_hooks_from_workspace = AsyncMock(return_value=None)
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
-        return Settings(
-            llm_model=self.mock_user.llm_model,
-            llm_api_key=self.mock_user.llm_api_key,
-            llm_base_url=self.mock_user.llm_base_url,
-            enable_default_condenser=True,
-            condenser_max_size=self.mock_user.condenser_max_size,
-            sdk_settings_values=dict(self.mock_user.sdk_settings_values),
-        ).to_agent_settings()
+        sdk_values = dict(self.mock_user.sdk_settings_values)
+        sdk_values.setdefault('llm.model', self.mock_user.llm_model or '')
+        if self.mock_user.llm_api_key:
+            sdk_values.setdefault('llm.api_key', self.mock_user.llm_api_key)
+        if self.mock_user.llm_base_url:
+            sdk_values.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        return Settings(sdk_settings_values=sdk_values).to_agent_settings()
 
     def test_apply_suggested_task_sets_prompt_and_trigger(self):
         """Test suggested task prompts populate initial message and trigger."""
@@ -2472,14 +2471,13 @@ class TestPluginHandling:
         self.mock_sandbox.status = SandboxStatus.RUNNING
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
-        return Settings(
-            llm_model=self.mock_user.llm_model,
-            llm_api_key=self.mock_user.llm_api_key,
-            llm_base_url=self.mock_user.llm_base_url,
-            enable_default_condenser=True,
-            condenser_max_size=self.mock_user.condenser_max_size,
-            sdk_settings_values=dict(self.mock_user.sdk_settings_values),
-        ).to_agent_settings()
+        sdk_values = dict(self.mock_user.sdk_settings_values)
+        sdk_values.setdefault('llm.model', self.mock_user.llm_model or '')
+        if self.mock_user.llm_api_key:
+            sdk_values.setdefault('llm.api_key', self.mock_user.llm_api_key)
+        if self.mock_user.llm_base_url:
+            sdk_values.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        return Settings(sdk_settings_values=sdk_values).to_agent_settings()
 
     def test_construct_initial_message_with_plugin_params_no_plugins(self):
         """Test _construct_initial_message_with_plugin_params with no plugins returns original message."""

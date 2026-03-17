@@ -156,8 +156,11 @@ export function buildInitialSettingsFormValues(
 
 /** Determine which view tier to default to based on whether the user has
  *  overridden any non-critical settings. */
-export function inferInitialView(settings: Settings): SettingsView {
-  const schema = settings.sdk_settings_schema;
+export function inferInitialView(
+  settings: Settings,
+  schemaOverride?: SettingsSchema | null,
+): SettingsView {
+  const schema = schemaOverride ?? settings.sdk_settings_schema;
   if (!schema) {
     return "basic";
   }

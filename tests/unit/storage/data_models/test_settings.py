@@ -108,17 +108,14 @@ def test_settings_preserve_sdk_settings_values():
     }
 
 
-def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
+def test_settings_to_agent_settings_uses_sdk_values():
     settings = Settings(
-        llm_model='legacy-model',
-        llm_api_key='legacy-key',
-        llm_base_url='https://legacy.example.com',
-        enable_default_condenser=True,
-        condenser_max_size=88,
         sdk_settings_values={
             'llm.model': 'sdk-model',
+            'llm.base_url': 'https://sdk.example.com',
             'llm.litellm_extra_body': {'metadata': {'tier': 'enterprise'}},
             'condenser.enabled': False,
+            'condenser.max_size': 88,
             'critic.enabled': True,
             'critic.mode': 'all_actions',
         },
@@ -127,8 +124,7 @@ def test_settings_to_agent_settings_prefers_sdk_values_and_legacy_fallbacks():
     agent_settings = settings.to_agent_settings()
 
     assert agent_settings.llm.model == 'sdk-model'
-    assert agent_settings.llm.api_key.get_secret_value() == 'legacy-key'
-    assert agent_settings.llm.base_url == 'https://legacy.example.com'
+    assert agent_settings.llm.base_url == 'https://sdk.example.com'
     assert agent_settings.llm.litellm_extra_body == {'metadata': {'tier': 'enterprise'}}
     assert agent_settings.condenser.enabled is False
     assert agent_settings.condenser.max_size == 88

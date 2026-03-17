@@ -20,14 +20,6 @@ from openhands.core.config.utils import load_openhands_config
 from openhands.sdk.settings import AgentSettings
 from openhands.storage.data_models.secrets import Secrets
 
-SDK_LEGACY_FIELD_MAP: dict[str, str] = {
-    'llm.model': 'llm_model',
-    'llm.api_key': 'llm_api_key',
-    'llm.base_url': 'llm_base_url',
-    'condenser.enabled': 'enable_default_condenser',
-    'condenser.max_size': 'condenser_max_size',
-}
-
 
 def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) -> None:
     current = target
@@ -227,23 +219,8 @@ class Settings(BaseModel):
         return self
 
     def to_agent_settings(self) -> AgentSettings:
-        """Build SDK AgentSettings from persisted OpenHands settings.
-
-        Values stored in ``sdk_settings_values`` take precedence. Legacy flat fields
-        are used as a fallback so older stored settings continue to work.
-        """
+        """Build SDK ``AgentSettings`` from persisted ``sdk_settings_values``."""
         payload: dict[str, Any] = {}
-        sdk_values = dict(self.sdk_settings_values)
-
-        for key, value in sdk_values.items():
+        for key, value in self.sdk_settings_values.items():
             _assign_dotted_value(payload, key, value)
-
-        for key, legacy_field in SDK_LEGACY_FIELD_MAP.items():
-            if key in sdk_values:
-                continue
-            legacy_value = getattr(self, legacy_field)
-            if legacy_value is None:
-                continue
-            _assign_dotted_value(payload, key, legacy_value)
-
         return AgentSettings.model_validate(payload)

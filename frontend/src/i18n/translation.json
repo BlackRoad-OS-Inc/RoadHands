@@ -2191,6 +2191,22 @@
     "de": "Kritiker",
     "uk": "Критик"
   },
+  "SETTINGS$NAV_GENERAL": {
+    "en": "General",
+    "ja": "一般",
+    "zh-CN": "通用",
+    "zh-TW": "通用",
+    "ko-KR": "일반",
+    "no": "Generelt",
+    "it": "Generale",
+    "pt": "Geral",
+    "es": "General",
+    "ar": "عام",
+    "fr": "Général",
+    "tr": "Genel",
+    "de": "Allgemein",
+    "uk": "Загальні"
+  },
   "SETTINGS$NAV_LLM": {
     "en": "LLM",
     "ja": "LLM",
@@ -2206,6 +2222,22 @@
     "tr": "LLM",
     "de": "LLM",
     "uk": "LLM"
+  },
+  "SETTINGS$NAV_SECURITY": {
+    "en": "Security",
+    "ja": "セキュリティ",
+    "zh-CN": "安全",
+    "zh-TW": "安全",
+    "ko-KR": "보안",
+    "no": "Sikkerhet",
+    "it": "Sicurezza",
+    "pt": "Segurança",
+    "es": "Seguridad",
+    "ar": "الأمان",
+    "fr": "Sécurité",
+    "tr": "Güvenlik",
+    "de": "Sicherheit",
+    "uk": "Безпека"
   },
   "GIT$MERGE_REQUEST": {
     "en": "Merge Request",

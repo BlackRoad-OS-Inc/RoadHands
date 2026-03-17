@@ -2,9 +2,11 @@ import { FiUsers, FiBriefcase } from "react-icons/fi";
 import CreditCardIcon from "#/icons/credit-card.svg?react";
 import KeyIcon from "#/icons/key.svg?react";
 import LightbulbIcon from "#/icons/lightbulb.svg?react";
+import LockIcon from "#/icons/lock.svg?react";
 import MemoryIcon from "#/icons/memory_icon.svg?react";
 import ServerProcessIcon from "#/icons/server-process.svg?react";
 import SettingsGearIcon from "#/icons/settings-gear.svg?react";
+import SettingsIcon from "#/icons/settings.svg?react";
 import CircuitIcon from "#/icons/u-circuit.svg?react";
 import PuzzlePieceIcon from "#/icons/u-puzzle-piece.svg?react";
 import UserIcon from "#/icons/user.svg?react";
@@ -32,9 +34,19 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
     text: "SETTINGS$NAV_APPLICATION",
   },
   {
+    icon: <SettingsIcon width={22} height={22} />,
+    to: "/settings/general",
+    text: "SETTINGS$NAV_GENERAL",
+  },
+  {
     icon: <CircuitIcon width={22} height={22} />,
     to: "/settings",
     text: "COMMON$LANGUAGE_MODEL_LLM",
+  },
+  {
+    icon: <LockIcon width={22} height={22} />,
+    to: "/settings/security",
+    text: "SETTINGS$NAV_SECURITY",
   },
   {
     icon: <MemoryIcon width={22} height={22} />,
@@ -80,9 +92,19 @@ export const SAAS_NAV_ITEMS: SettingsNavItem[] = [
 
 export const OSS_NAV_ITEMS: SettingsNavItem[] = [
   {
+    icon: <SettingsIcon width={22} height={22} />,
+    to: "/settings/general",
+    text: "SETTINGS$NAV_GENERAL",
+  },
+  {
     icon: <CircuitIcon width={22} height={22} />,
     to: "/settings",
     text: "SETTINGS$NAV_LLM",
+  },
+  {
+    icon: <LockIcon width={22} height={22} />,
+    to: "/settings/security",
+    text: "SETTINGS$NAV_SECURITY",
   },
   {
     icon: <MemoryIcon width={22} height={22} />,

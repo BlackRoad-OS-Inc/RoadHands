@@ -139,8 +139,8 @@ export function SdkSectionPage({
     if (!settings?.sdk_settings_schema) return;
     setValues(buildInitialSettingsFormValues(settings));
     setDirty({});
-    setView(inferInitialView(settings));
-  }, [settings]);
+    setView(inferInitialView(settings, filteredSchema));
+  }, [settings, filteredSchema]);
 
   const visibleSections = React.useMemo(() => {
     if (!filteredSchema) return [];
