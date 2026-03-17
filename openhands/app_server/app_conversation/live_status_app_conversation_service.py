@@ -1197,6 +1197,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             update={
                 'llm': llm,
                 'tools': tools,
+                'mcp_config': mcp_config,
                 'agent_context': AgentContext(
                     system_message_suffix=effective_suffix,
                     secrets=secrets,
@@ -1204,8 +1205,8 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             }
         ).create_agent()
 
-        # Runtime-only Agent overrides not captured by settings
-        runtime_overrides: dict[str, Any] = {'mcp_config': mcp_config}
+        # Runtime-only Agent overrides (agent-type-specific prompting)
+        runtime_overrides: dict[str, Any] = {}
         if agent_type == AgentType.PLAN:
             runtime_overrides['system_prompt_filename'] = 'system_prompt_planning.j2'
             runtime_overrides['system_prompt_kwargs'] = {
