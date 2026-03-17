@@ -1205,14 +1205,13 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
             }
         ).create_agent()
 
-        # Runtime-only Agent overrides (agent-type-specific prompting)
+        # Agent-type-specific prompt overrides
         runtime_overrides: dict[str, Any] = {}
         if agent_type == AgentType.PLAN:
             runtime_overrides['system_prompt_filename'] = 'system_prompt_planning.j2'
             runtime_overrides['system_prompt_kwargs'] = {
                 'plan_structure': format_plan_structure()
             }
-            runtime_overrides['security_analyzer'] = None
         else:
             runtime_overrides['system_prompt_kwargs'] = {'cli_mode': False}
 
