@@ -126,5 +126,7 @@ class SandboxConfig(BaseModel):
     @model_validator(mode='after')
     def set_default_base_image(self) -> 'SandboxConfig':
         if self.base_container_image is None:
-            self.base_container_image = 'nikolaik/python-nodejs:python3.12-nodejs22-slim'
+            self.base_container_image = (
+                'nikolaik/python-nodejs:python3.12-nodejs22-slim'
+            )
         return self
