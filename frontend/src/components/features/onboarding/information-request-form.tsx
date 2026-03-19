@@ -12,24 +12,29 @@ import StackedIcon from "#/icons/stacked.svg?react";
 
 export type RequestType = "saas" | "self-hosted";
 
+export interface FormData {
+  name: string;
+  company: string;
+  email: string;
+  message: string;
+}
+
 interface InformationRequestFormProps {
   requestType: RequestType;
+  formData: FormData;
+  onFormDataChange: (data: FormData) => void;
   onBack: () => void;
 }
 
 export function InformationRequestForm({
   requestType,
+  formData,
+  onFormDataChange,
   onBack,
 }: InformationRequestFormProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { trackEnterpriseLeadFormSubmitted } = useTracking();
-  const [formData, setFormData] = useState({
-    name: "",
-    company: "",
-    email: "",
-    message: "",
-  });
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -116,9 +121,7 @@ export function InformationRequestForm({
             placeholder={t(I18nKey.ENTERPRISE$FORM_NAME_PLACEHOLDER)}
             required
             showError={hasAttemptedSubmit}
-            onChange={(value) =>
-              setFormData((prev) => ({ ...prev, name: value }))
-            }
+            onChange={(value) => onFormDataChange({ ...formData, name: value })}
           />
 
           <FormInput
@@ -129,7 +132,7 @@ export function InformationRequestForm({
             required
             showError={hasAttemptedSubmit}
             onChange={(value) =>
-              setFormData((prev) => ({ ...prev, company: value }))
+              onFormDataChange({ ...formData, company: value })
             }
           />
 
@@ -142,7 +145,7 @@ export function InformationRequestForm({
             required
             showError={hasAttemptedSubmit}
             onChange={(value) =>
-              setFormData((prev) => ({ ...prev, email: value }))
+              onFormDataChange({ ...formData, email: value })
             }
           />
 
@@ -155,7 +158,7 @@ export function InformationRequestForm({
             required
             showError={hasAttemptedSubmit}
             onChange={(value) =>
-              setFormData((prev) => ({ ...prev, message: value }))
+              onFormDataChange({ ...formData, message: value })
             }
           />
 
