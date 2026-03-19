@@ -48,7 +48,11 @@ function EnterpriseCard({
   learnMoreLabel,
 }: EnterpriseCardProps) {
   return (
-    <Card theme="dark" hover="elevated" className="flex-1 flex-col p-6 gap-4">
+    <Card
+      theme="dark"
+      hover="elevated"
+      className="w-full md:w-[438px] md:min-h-[371.5px] flex-col p-6 gap-4"
+    >
       <div className="w-10 h-10">{icon}</div>
       <h3 className="text-lg font-semibold text-white">{title}</h3>
       <Text className="text-[#8C8C8C]">{description}</Text>
@@ -143,7 +147,7 @@ export default function InformationRequest() {
         <EnterpriseCard
           icon={<StackedIcon className="w-10 h-10" />}
           title={t(I18nKey.ENTERPRISE$SELF_HOSTED_TITLE)}
-          description={t(I18nKey.ENTERPRISE$SELF_HOSTED_DESCRIPTION)}
+          description={t(I18nKey.ENTERPRISE$SELF_HOSTED_CARD_DESCRIPTION)}
           features={selfHostedFeatures}
           onLearnMore={() => handleLearnMore("self-hosted")}
           learnMoreLabel={t(I18nKey.ENTERPRISE$LEARN_MORE)}
