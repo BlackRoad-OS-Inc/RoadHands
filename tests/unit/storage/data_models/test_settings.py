@@ -167,6 +167,8 @@ def test_settings_marketplace_path_blank_string_maps_to_none():
         'marketplaces\\default.json',
         'marketplaces/default',
         'marketplaces/%2e%2e/secret.json',
+        'skills.json',
+        'my-marketplace.json',
     ],
 )
 def test_settings_marketplace_path_rejects_invalid_values(value: str):

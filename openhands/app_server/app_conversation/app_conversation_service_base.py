@@ -134,9 +134,10 @@ class AppConversationServiceBase(AppConversationService, ABC):
             try:
                 user_info = await self.user_context.get_user_info()
                 marketplace_path = user_info.marketplace_path
-            except Exception as e:
-                _logger.warning(
-                    f'Failed to load marketplace_path from user settings: {e}'
+            except NotImplementedError:
+                _logger.debug(
+                    'User context does not provide user settings; '
+                    'loading skills without marketplace_path override'
                 )
 
             # Single API call to agent-server for ALL skills

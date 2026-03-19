@@ -21,7 +21,7 @@ from openhands.core.config.mcp_config import MCPConfig
 from openhands.core.config.utils import load_openhands_config
 from openhands.storage.data_models.secrets import Secrets
 
-MARKETPLACE_PATH_PATTERN = re.compile(r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\.json$')
+MARKETPLACE_PATH_PATTERN = re.compile(r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)+\.json$')
 
 
 class SandboxGroupingStrategy(str, Enum):

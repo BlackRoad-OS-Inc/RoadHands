@@ -72,7 +72,7 @@ export const parseMaxBudgetPerTask = (value: string): number | null => {
  * Regex pattern for validating marketplace_path.
  * Only relative JSON paths within the public skills repository are supported.
  */
-const MARKETPLACE_PATH_PATTERN = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)*\.json$/;
+const MARKETPLACE_PATH_PATTERN = /^[a-zA-Z0-9_-]+(?:\/[a-zA-Z0-9_.-]+)+\.json$/;
 
 /**
  * Validates a marketplace path value.

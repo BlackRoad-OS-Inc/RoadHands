@@ -107,9 +107,6 @@ describe("isValidMarketplacePath", () => {
   it("should return true for valid simple paths", () => {
     expect(isValidMarketplacePath("marketplaces/default.json")).toBe(true);
     expect(isValidMarketplacePath("path/to/file.json")).toBe(true);
-    expect(isValidMarketplacePath("skills.json")).toBe(true);
-    expect(isValidMarketplacePath("my-marketplace.json")).toBe(true);
-    expect(isValidMarketplacePath("my_marketplace.json")).toBe(true);
   });
 
   it("should return false for invalid paths", () => {
@@ -126,7 +123,10 @@ describe("isValidMarketplacePath", () => {
       false,
     );
 
-    // Missing .json extension
+    // Missing directory component or extension
+    expect(isValidMarketplacePath("skills.json")).toBe(false);
+    expect(isValidMarketplacePath("my-marketplace.json")).toBe(false);
+    expect(isValidMarketplacePath("my_marketplace.json")).toBe(false);
     expect(isValidMarketplacePath("marketplaces/default")).toBe(false);
 
     // Invalid characters

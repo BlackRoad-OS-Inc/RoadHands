@@ -1146,6 +1146,49 @@ class TestLoadAndMergeAllSkills:
     @patch(
         'openhands.app_server.app_conversation.app_conversation_service_base.build_sandbox_config'
     )
+    async def test_skips_marketplace_override_when_user_info_is_unavailable(
+        self,
+        mock_build_sandbox_config,
+        mock_build_org_config,
+        mock_load_skills,
+    ):
+        mock_user_context = Mock(spec=UserContext)
+        mock_user_context.get_user_info = AsyncMock(side_effect=NotImplementedError)
+        with patch.object(AppConversationServiceBase, '__abstractmethods__', set()):
+            service = AppConversationServiceBase(
+                init_git_in_empty_workspace=True, user_context=mock_user_context
+            )
+
+            from openhands.app_server.sandbox.sandbox_models import ExposedUrl
+
+            sandbox = Mock(spec=SandboxInfo)
+            exposed_url = ExposedUrl(
+                name='AGENT_SERVER', url='http://localhost:8000', port=8000
+            )
+            sandbox.exposed_urls = [exposed_url]
+            sandbox.session_api_key = 'test-key'
+
+            mock_load_skills.return_value = []
+            mock_build_org_config.return_value = None
+            mock_build_sandbox_config.return_value = None
+
+            await service.load_and_merge_all_skills(
+                sandbox, None, '/workspace', 'http://localhost:8000'
+            )
+
+            call_kwargs = mock_load_skills.call_args[1]
+            assert call_kwargs['marketplace_path'] is None
+
+    @pytest.mark.asyncio
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.load_skills_from_agent_server'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.build_org_config'
+    )
+    @patch(
+        'openhands.app_server.app_conversation.app_conversation_service_base.build_sandbox_config'
+    )
     async def test_handles_exception_gracefully(
         self,
         mock_build_sandbox_config,
