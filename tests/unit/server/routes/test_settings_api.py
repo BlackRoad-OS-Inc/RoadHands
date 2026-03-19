@@ -80,16 +80,16 @@ def test_client():
         yield client
 
 
-def test_get_sdk_settings_schema_returns_none_when_sdk_missing():
+def test_get_agent_settings_schema_returns_none_when_sdk_missing():
     with patch(
-        'openhands.server.routes.settings._get_sdk_settings_schema',
+        'openhands.server.routes.settings._get_agent_settings_schema',
         return_value=None,
     ) as mock_fn:
         assert mock_fn() is None
 
 
-def test_get_sdk_settings_schema_includes_verification_section():
-    schema = settings_routes._get_sdk_settings_schema()
+def test_get_agent_settings_schema_includes_verification_section():
+    schema = settings_routes._get_agent_settings_schema()
     assert schema is not None
     section_keys = [s['key'] for s in schema['sections']]
     assert 'verification' in section_keys
@@ -103,7 +103,7 @@ def test_get_sdk_settings_schema_includes_verification_section():
 @pytest.mark.asyncio
 async def test_settings_api_endpoints(test_client):
     """Test that the settings API endpoints work with the new auth system."""
-    sdk_settings_schema = {
+    agent_settings_schema = {
         'model_name': 'AgentSettings',
         'sections': [
             {
@@ -205,8 +205,8 @@ async def test_settings_api_endpoints(test_client):
     }
 
     with patch(
-        'openhands.server.routes.settings._get_sdk_settings_schema',
-        return_value=sdk_settings_schema,
+        'openhands.server.routes.settings._get_agent_settings_schema',
+        return_value=agent_settings_schema,
     ):
         # Make the POST request to store settings
         response = test_client.post('/api/settings', json=settings_data)
@@ -218,7 +218,7 @@ async def test_settings_api_endpoints(test_client):
         response = test_client.get('/api/settings')
         assert response.status_code == 200
         response_data = response.json()
-        schema = response_data['sdk_settings_schema']
+        schema = response_data['agent_settings_schema']
         assert schema['model_name'] == 'AgentSettings'
         assert isinstance(schema['sections'], list)
         assert [section['key'] for section in schema['sections']] == [
@@ -238,7 +238,7 @@ async def test_settings_api_endpoints(test_client):
         assert llm_section['fields'][2]['value_type'] == 'integer'
         assert llm_section['fields'][3]['value_type'] == 'object'
         assert verification_section['label'] == 'Verification'
-        vals = response_data['sdk_settings_values']
+        vals = response_data['agent_settings']
         assert vals['llm.model'] == 'test-model'
         assert vals['llm.timeout'] == 123
         assert vals['llm.litellm_extra_body'] == {'metadata': {'tier': 'pro'}}
@@ -249,7 +249,7 @@ async def test_settings_api_endpoints(test_client):
         assert vals['verification.max_refinement_iterations'] == 4
         assert vals['verification.confirmation_mode'] is True
         assert vals['verification.security_analyzer'] == 'llm'
-        assert vals['llm.api_key'] is None
+        assert vals['llm.api_key'] == '<hidden>'
 
         # Test updating with partial settings
         partial_settings = {
@@ -263,7 +263,7 @@ async def test_settings_api_endpoints(test_client):
 
         response = test_client.get('/api/settings')
         assert response.status_code == 200
-        assert response.json()['sdk_settings_values']['llm.timeout'] == 123
+        assert response.json()['agent_settings']['llm.timeout'] == 123
 
         # Test the unset-provider-tokens endpoint
         response = test_client.post('/api/unset-provider-tokens')
@@ -278,7 +278,7 @@ async def test_saving_settings_with_frozen_secrets_store(test_client):
     """
     settings_data = {
         'language': 'en',
-        'llm_model': 'gpt-4',
+        'llm.model': 'gpt-4',
         'secrets_store': {'provider_tokens': {}},
     }
     response = test_client.post('/api/settings', json=settings_data)
@@ -288,10 +288,10 @@ async def test_saving_settings_with_frozen_secrets_store(test_client):
 @pytest.mark.asyncio
 async def test_search_api_key_preservation(test_client):
     """Test that search_api_key is preserved when sending an empty string."""
-    # 1. Set initial settings with a search API key
+    # 1. Set initial settings with a search API key (use SDK dotted keys)
     initial_settings = {
         'search_api_key': 'initial-secret-key',
-        'llm_model': 'gpt-4',
+        'llm.model': 'gpt-4',
     }
     response = test_client.post('/api/settings', json=initial_settings)
     assert response.status_code == 200
@@ -302,10 +302,10 @@ async def test_search_api_key_preservation(test_client):
     assert response.json()['search_api_key_set'] is True
 
     # 2. Update settings with EMPTY search API key (simulating the frontend bug)
-    # and changing another field (llm_model)
+    # and changing another field via SDK key
     update_settings = {
-        'search_api_key': '',  # The frontend sends an empty string here
-        'llm_model': 'claude-3-opus',
+        'search_api_key': '',
+        'llm.model': 'claude-3-opus',
     }
     response = test_client.post('/api/settings', json=update_settings)
     assert response.status_code == 200
@@ -313,7 +313,6 @@ async def test_search_api_key_preservation(test_client):
     # 3. Verify the key was NOT wiped out (The Critical Check)
     response = test_client.get('/api/settings')
     assert response.status_code == 200
-    # If the bug was present, this would be False
     assert response.json()['search_api_key_set'] is True
-    # Verify the other field updated correctly
-    assert response.json()['llm_model'] == 'claude-3-opus'
+    # Verify the SDK value updated
+    assert response.json()['agent_settings']['llm.model'] == 'claude-3-opus'

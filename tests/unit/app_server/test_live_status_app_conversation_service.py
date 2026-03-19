@@ -119,7 +119,7 @@ class TestLiveStatusAppConversationService:
         self.mock_user.condenser_max_size = None  # Default to None
         self.mock_user.llm_base_url = 'https://api.openai.com/v1'
         self.mock_user.mcp_config = None  # Default to None to avoid error handling path
-        self.mock_user.sdk_settings_values = {}
+        self.mock_user.agent_settings = {}
         self.mock_user.to_agent_settings = Mock(
             side_effect=self._mock_user_to_agent_settings
         )
@@ -134,13 +134,13 @@ class TestLiveStatusAppConversationService:
         self.service._load_hooks_from_workspace = AsyncMock(return_value=None)
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
-        sdk_values = dict(self.mock_user.sdk_settings_values)
-        sdk_values.setdefault('llm.model', self.mock_user.llm_model or '')
+        agent_vals = dict(self.mock_user.agent_settings)
+        agent_vals.setdefault('llm.model', self.mock_user.llm_model or '')
         if self.mock_user.llm_api_key:
-            sdk_values.setdefault('llm.api_key', self.mock_user.llm_api_key)
+            agent_vals.setdefault('llm.api_key', self.mock_user.llm_api_key)
         if self.mock_user.llm_base_url:
-            sdk_values.setdefault('llm.base_url', self.mock_user.llm_base_url)
-        return Settings(sdk_settings_values=sdk_values).to_agent_settings()
+            agent_vals.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        return Settings(agent_settings=agent_vals).to_agent_settings()
 
     def test_apply_suggested_task_sets_prompt_and_trigger(self):
         """Test suggested task prompts populate initial message and trigger."""
@@ -511,7 +511,7 @@ class TestLiveStatusAppConversationService:
     @pytest.mark.asyncio
     async def test_configure_llm_and_mcp_uses_sdk_agent_settings(self):
         """SDK AgentSettings values should drive the configured LLM."""
-        self.mock_user.sdk_settings_values = {
+        self.mock_user.agent_settings = {
             'llm.model': 'sdk-model',
             'llm.base_url': 'https://sdk-llm.example.com',
             'llm.timeout': 123,
@@ -843,7 +843,7 @@ class TestLiveStatusAppConversationService:
 
     def test_get_agent_settings_passes_through_critic_settings(self):
         """_get_agent_settings passes critic settings through unchanged."""
-        self.mock_user.sdk_settings_values = {
+        self.mock_user.agent_settings = {
             'llm.model': 'openhands/default',
             'verification.critic_enabled': True,
             'verification.critic_server_url': 'https://my-critic.example.com',
@@ -2297,7 +2297,7 @@ class TestPluginHandling:
         self.mock_user.condenser_max_size = None
         self.mock_user.mcp_config = None
         self.mock_user.security_analyzer = None
-        self.mock_user.sdk_settings_values = {}
+        self.mock_user.agent_settings = {}
         self.mock_user.to_agent_settings = Mock(
             side_effect=self._mock_user_to_agent_settings
         )
@@ -2308,13 +2308,13 @@ class TestPluginHandling:
         self.mock_sandbox.status = SandboxStatus.RUNNING
 
     def _mock_user_to_agent_settings(self) -> AgentSettings:
-        sdk_values = dict(self.mock_user.sdk_settings_values)
-        sdk_values.setdefault('llm.model', self.mock_user.llm_model or '')
+        agent_vals = dict(self.mock_user.agent_settings)
+        agent_vals.setdefault('llm.model', self.mock_user.llm_model or '')
         if self.mock_user.llm_api_key:
-            sdk_values.setdefault('llm.api_key', self.mock_user.llm_api_key)
+            agent_vals.setdefault('llm.api_key', self.mock_user.llm_api_key)
         if self.mock_user.llm_base_url:
-            sdk_values.setdefault('llm.base_url', self.mock_user.llm_base_url)
-        return Settings(sdk_settings_values=sdk_values).to_agent_settings()
+            agent_vals.setdefault('llm.base_url', self.mock_user.llm_base_url)
+        return Settings(agent_settings=agent_vals).to_agent_settings()
 
     def test_construct_initial_message_with_plugin_params_no_plugins(self):
         """Test _construct_initial_message_with_plugin_params with no plugins returns original message."""

@@ -17,7 +17,7 @@ from pydantic import (
 )
 
 from openhands.core.config.mcp_config import MCPConfig
-from openhands.integrations.provider import CustomSecret, ProviderToken
+from openhands.integrations.provider import CustomSecret, ProviderToken  # noqa: F401
 from openhands.integrations.service_types import ProviderType
 from openhands.storage.data_models.settings import Settings
 
@@ -43,7 +43,7 @@ class GETSettingsModel(Settings):
     )
     llm_api_key_set: bool
     search_api_key_set: bool = False
-    sdk_settings_schema: dict[str, Any] | None = None
+    agent_settings_schema: dict[str, Any] | None = None
 
     model_config = ConfigDict(use_enum_values=True)
 

@@ -10,7 +10,6 @@ from pydantic import (
     SecretStr,
     SerializationInfo,
     field_serializer,
-    field_validator,
     model_validator,
 )
 
@@ -29,38 +28,44 @@ def _assign_dotted_value(target: dict[str, Any], dotted_key: str, value: Any) ->
     current[parts[-1]] = value
 
 
+# Maps legacy flat field names → SDK dotted keys for migration.
+_LEGACY_FLAT_TO_SDK: dict[str, str] = {
+    'llm_model': 'llm.model',
+    'llm_api_key': 'llm.api_key',
+    'llm_base_url': 'llm.base_url',
+    'agent': 'agent',
+    'confirmation_mode': 'verification.confirmation_mode',
+    'security_analyzer': 'verification.security_analyzer',
+    'enable_default_condenser': 'condenser.enabled',
+    'condenser_max_size': 'condenser.max_size',
+    'max_iterations': 'max_iterations',
+}
+
+
 class SandboxGroupingStrategy(str, Enum):
     """Strategy for grouping conversations within sandboxes."""
 
-    NO_GROUPING = 'NO_GROUPING'  # Default - each conversation gets its own sandbox
-    GROUP_BY_NEWEST = 'GROUP_BY_NEWEST'  # Add to the most recently created sandbox
-    LEAST_RECENTLY_USED = (
-        'LEAST_RECENTLY_USED'  # Add to the least recently used sandbox
-    )
-    FEWEST_CONVERSATIONS = (
-        'FEWEST_CONVERSATIONS'  # Add to sandbox with fewest conversations
-    )
-    ADD_TO_ANY = 'ADD_TO_ANY'  # Add to any available sandbox (first found)
+    NO_GROUPING = 'NO_GROUPING'
+    GROUP_BY_NEWEST = 'GROUP_BY_NEWEST'
+    LEAST_RECENTLY_USED = 'LEAST_RECENTLY_USED'
+    FEWEST_CONVERSATIONS = 'FEWEST_CONVERSATIONS'
+    ADD_TO_ANY = 'ADD_TO_ANY'
 
 
 class Settings(BaseModel):
-    """Persisted settings for OpenHands sessions."""
+    """Persisted settings for OpenHands sessions.
+
+    SDK-managed fields (LLM config, condenser, verification, agent) live
+    exclusively in ``agent_settings`` using dotted keys such as
+    ``llm.model``.  Convenience properties provide typed read access.
+    """
 
     language: str | None = None
-    agent: str | None = None
-    max_iterations: int | None = None
-    security_analyzer: str | None = None
-    confirmation_mode: bool | None = None
-    llm_model: str | None = None
-    llm_api_key: SecretStr | None = None
-    llm_base_url: str | None = None
     user_version: int | None = None
     remote_runtime_resource_factor: int | None = None
-    # Planned to be removed from settings
     secrets_store: Annotated[Secrets, Field(frozen=True)] = Field(
         default_factory=Secrets
     )
-    enable_default_condenser: bool = True
     enable_sound_notifications: bool = False
     enable_proactive_conversation_starters: bool = True
     enable_solvability_analysis: bool = True
@@ -71,14 +76,12 @@ class Settings(BaseModel):
     search_api_key: SecretStr | None = None
     sandbox_api_key: SecretStr | None = None
     max_budget_per_task: float | None = None
-    # Maximum number of events in the conversation view before condensation runs
-    condenser_max_size: int | None = None
     email: str | None = None
     email_verified: bool | None = None
     git_user_name: str | None = None
     git_user_email: str | None = None
     v1_enabled: bool = True
-    sdk_settings_values: dict[str, Any] = Field(default_factory=dict)
+    agent_settings: dict[str, Any] = Field(default_factory=dict)
     sandbox_grouping_strategy: SandboxGroupingStrategy = (
         SandboxGroupingStrategy.NO_GROUPING
     )
@@ -87,124 +90,174 @@ class Settings(BaseModel):
         validate_assignment=True,
     )
 
-    @field_serializer('llm_api_key', 'search_api_key')
-    def api_key_serializer(self, api_key: SecretStr | None, info: SerializationInfo):
-        """Custom serializer for API keys.
+    # ------------------------------------------------------------------
+    # Convenience read accessors into agent_settings
+    # ------------------------------------------------------------------
 
-        To serialize the API key instead of ********, set expose_secrets to True in the serialization context.
-        """
+    @property
+    def llm_model(self) -> str | None:
+        return self.agent_settings.get('llm.model')
+
+    @property
+    def llm_api_key(self) -> SecretStr | None:
+        val = self.agent_settings.get('llm.api_key')
+        return SecretStr(val) if val else None
+
+    @property
+    def llm_base_url(self) -> str | None:
+        return self.agent_settings.get('llm.base_url')
+
+    @property
+    def agent(self) -> str | None:
+        return self.agent_settings.get('agent')
+
+    @property
+    def confirmation_mode(self) -> bool | None:
+        return self.agent_settings.get('verification.confirmation_mode')
+
+    @property
+    def security_analyzer(self) -> str | None:
+        return self.agent_settings.get('verification.security_analyzer')
+
+    @property
+    def max_iterations(self) -> int | None:
+        return self.agent_settings.get('max_iterations')
+
+    @property
+    def enable_default_condenser(self) -> bool:
+        return self.agent_settings.get('condenser.enabled', True)
+
+    @property
+    def condenser_max_size(self) -> int | None:
+        return self.agent_settings.get('condenser.max_size')
+
+    @property
+    def llm_api_key_is_set(self) -> bool:
+        val = self.agent_settings.get('llm.api_key')
+        return bool(val and str(val).strip())
+
+    # ------------------------------------------------------------------
+    # Serialization
+    # ------------------------------------------------------------------
+
+    @field_serializer('search_api_key')
+    def api_key_serializer(self, api_key: SecretStr | None, info: SerializationInfo):
         if api_key is None:
             return None
-
-        # Get the secret value to check if it's empty
         secret_value = api_key.get_secret_value()
         if not secret_value or not secret_value.strip():
             return None
-
         context = info.context
         if context and context.get('expose_secrets', False):
             return secret_value
-
         return str(api_key)
+
+    @field_serializer('agent_settings')
+    def agent_settings_field_serializer(
+        self, values: dict[str, Any], info: SerializationInfo
+    ) -> dict[str, Any]:
+        """Expose secret SDK values only when ``expose_secrets`` is set."""
+        context = info.context
+        if context and context.get('expose_secrets', False):
+            return values
+        # Redact — caller should use _extract_agent_settings for GET.
+        return {k: v for k, v in values.items()}
 
     @model_validator(mode='before')
     @classmethod
-    def convert_provider_tokens(cls, data: dict | object) -> dict | object:
-        """Convert provider tokens from JSON format to Secrets format."""
+    def _migrate_legacy_fields(cls, data: dict | object) -> dict | object:
+        """Migrate legacy flat fields into ``agent_settings``."""
         if not isinstance(data, dict):
             return data
 
+        agent_vals: dict[str, Any] = dict(data.get('agent_settings') or {})
+
+        for flat_key, dotted_key in _LEGACY_FLAT_TO_SDK.items():
+            if flat_key in data and dotted_key not in agent_vals:
+                value = data[flat_key]
+                if value is not None:
+                    # Unwrap SecretStr / pydantic masked strings
+                    if isinstance(value, SecretStr):
+                        value = value.get_secret_value()
+                    elif isinstance(value, str) and value.startswith('**'):
+                        continue  # skip masked values
+                    agent_vals[dotted_key] = value
+
+        # Remove legacy flat fields so Pydantic doesn't complain
+        for flat_key in _LEGACY_FLAT_TO_SDK:
+            data.pop(flat_key, None)
+
+        data['agent_settings'] = agent_vals
+
+        # Handle legacy secrets_store
         secrets_store = data.get('secrets_store')
-        if not isinstance(secrets_store, dict):
-            return data
+        if isinstance(secrets_store, dict):
+            custom_secrets = secrets_store.get('custom_secrets')
+            tokens = secrets_store.get('provider_tokens')
+            secret_store = Secrets(provider_tokens={}, custom_secrets={})  # type: ignore[arg-type]
+            if isinstance(tokens, dict):
+                converted_store = Secrets(provider_tokens=tokens)  # type: ignore[arg-type]
+                secret_store = secret_store.model_copy(
+                    update={'provider_tokens': converted_store.provider_tokens}
+                )
+            if isinstance(custom_secrets, dict):
+                converted_store = Secrets(custom_secrets=custom_secrets)  # type: ignore[arg-type]
+                secret_store = secret_store.model_copy(
+                    update={'custom_secrets': converted_store.custom_secrets}
+                )
+            data['secret_store'] = secret_store
 
-        custom_secrets = secrets_store.get('custom_secrets')
-        tokens = secrets_store.get('provider_tokens')
-
-        secret_store = Secrets(provider_tokens={}, custom_secrets={})  # type: ignore[arg-type]
-
-        if isinstance(tokens, dict):
-            converted_store = Secrets(provider_tokens=tokens)  # type: ignore[arg-type]
-            secret_store = secret_store.model_copy(
-                update={'provider_tokens': converted_store.provider_tokens}
-            )
-        else:
-            secret_store.model_copy(update={'provider_tokens': tokens})
-
-        if isinstance(custom_secrets, dict):
-            converted_store = Secrets(custom_secrets=custom_secrets)  # type: ignore[arg-type]
-            secret_store = secret_store.model_copy(
-                update={'custom_secrets': converted_store.custom_secrets}
-            )
-        else:
-            secret_store = secret_store.model_copy(
-                update={'custom_secrets': custom_secrets}
-            )
-        data['secret_store'] = secret_store
         return data
-
-    @field_validator('condenser_max_size')
-    @classmethod
-    def validate_condenser_max_size(cls, v: int | None) -> int | None:
-        if v is None:
-            return v
-        if v < 20:
-            raise ValueError('condenser_max_size must be at least 20')
-        return v
 
     @field_serializer('secrets_store')
     def secrets_store_serializer(self, secrets: Secrets, info: SerializationInfo):
-        """Custom serializer for secrets store."""
-        """Force invalidate secret store"""
         return {'provider_tokens': {}}
+
+    # ------------------------------------------------------------------
+    # Factory / conversion
+    # ------------------------------------------------------------------
 
     @staticmethod
     def from_config() -> Settings | None:
         app_config = load_openhands_config()
         llm_config: LLMConfig = app_config.get_llm_config()
         if llm_config.api_key is None:
-            # If no api key has been set, we take this to mean that there is no reasonable default
             return None
         security = app_config.security
 
-        # Get MCP config if available
         mcp_config = None
         if hasattr(app_config, 'mcp'):
             mcp_config = app_config.mcp
 
-        settings = Settings(
+        raw_api_key = llm_config.api_key.get_secret_value()
+
+        agent_vals: dict[str, Any] = {
+            'agent': app_config.default_agent,
+            'llm.model': llm_config.model,
+            'llm.api_key': raw_api_key,
+            'llm.base_url': llm_config.base_url,
+            'verification.confirmation_mode': security.confirmation_mode,
+            'verification.security_analyzer': security.security_analyzer,
+            'max_iterations': app_config.max_iterations,
+        }
+
+        return Settings(
             language='en',
-            agent=app_config.default_agent,
-            max_iterations=app_config.max_iterations,
-            security_analyzer=security.security_analyzer,
-            confirmation_mode=security.confirmation_mode,
-            llm_model=llm_config.model,
-            llm_api_key=llm_config.api_key,
-            llm_base_url=llm_config.base_url,
             remote_runtime_resource_factor=app_config.sandbox.remote_runtime_resource_factor,
             mcp_config=mcp_config,
             search_api_key=app_config.search_api_key,
             max_budget_per_task=app_config.max_budget_per_task,
+            agent_settings={k: v for k, v in agent_vals.items() if v is not None},
         )
-        return settings
 
     def merge_with_config_settings(self) -> 'Settings':
-        """Merge config.toml settings with stored settings.
-
-        Config.toml takes priority for MCP settings, but they are merged rather than replaced.
-        This method can be used by both server mode and CLI mode.
-        """
-        # Get config.toml settings
+        """Merge config.toml MCP settings with stored settings."""
         config_settings = Settings.from_config()
         if not config_settings or not config_settings.mcp_config:
             return self
-
-        # If stored settings don't have MCP config, use config.toml MCP config
         if not self.mcp_config:
             self.mcp_config = config_settings.mcp_config
             return self
-
-        # Both have MCP config - merge them with config.toml taking priority
         merged_mcp = MCPConfig(
             sse_servers=list(config_settings.mcp_config.sse_servers)
             + list(self.mcp_config.sse_servers),
@@ -213,14 +266,12 @@ class Settings(BaseModel):
             shttp_servers=list(config_settings.mcp_config.shttp_servers)
             + list(self.mcp_config.shttp_servers),
         )
-
-        # Create new settings with merged MCP config
         self.mcp_config = merged_mcp
         return self
 
     def to_agent_settings(self) -> AgentSettings:
-        """Build SDK ``AgentSettings`` from persisted ``sdk_settings_values``."""
+        """Build SDK ``AgentSettings`` from persisted ``agent_settings``."""
         payload: dict[str, Any] = {}
-        for key, value in self.sdk_settings_values.items():
+        for key, value in self.agent_settings.items():
             _assign_dotted_value(payload, key, value)
         return AgentSettings.model_validate(payload)

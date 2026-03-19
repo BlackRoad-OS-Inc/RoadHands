@@ -906,7 +906,7 @@ class LiveStatusAppConversationService(AppConversationServiceBase):
         llm_settings = agent_settings.llm.model_copy(deep=True)
 
         if llm_settings.model.startswith('openhands/'):
-            configured_base_url = user.sdk_settings_values.get(
+            configured_base_url = user.agent_settings.get(
                 'llm.base_url', user.llm_base_url
             )
             if configured_base_url is None:

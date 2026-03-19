@@ -41,9 +41,12 @@ function CriticalFields({
         models={organizeModelsAndProviders(models)}
         currentModel={currentModel || undefined}
         isDisabled={isDisabled}
-        onChange={(_provider, model) => {
-          if (model !== null) {
-            onChange("llm.model", model);
+        onChange={(provider, model) => {
+          if (model !== null && provider) {
+            // OpenAI models are listed without a prefix in LiteLLM
+            const fullModel =
+              provider === "openai" ? model : `${provider}/${model}`;
+            onChange("llm.model", fullModel);
           }
         }}
       />

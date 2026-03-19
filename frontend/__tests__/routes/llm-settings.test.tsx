@@ -40,9 +40,9 @@ function buildSettings(overrides: Partial<Settings> = {}): Settings {
   return {
     ...MOCK_DEFAULT_USER_SETTINGS,
     ...overrides,
-    sdk_settings_values: {
-      ...MOCK_DEFAULT_USER_SETTINGS.sdk_settings_values,
-      ...overrides.sdk_settings_values,
+    agent_settings: {
+      ...MOCK_DEFAULT_USER_SETTINGS.agent_settings,
+      ...overrides.agent_settings,
     },
   };
 }
@@ -121,7 +121,7 @@ beforeEach(() => {
 });
 
 describe("LlmSettingsScreen", () => {
-  it("renders critical LLM fields from sdk_settings_schema", async () => {
+  it("renders critical LLM fields from agent_settings_schema", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(buildSettings());
 
     renderLlmSettingsScreen();
@@ -177,7 +177,7 @@ describe("LlmSettingsScreen", () => {
 
   it("shows a fallback message when sdk settings schema is unavailable", async () => {
     vi.spyOn(SettingsService, "getSettings").mockResolvedValue(
-      buildSettings({ sdk_settings_schema: null }),
+      buildSettings({ agent_settings_schema: null }),
     );
 
     renderLlmSettingsScreen();

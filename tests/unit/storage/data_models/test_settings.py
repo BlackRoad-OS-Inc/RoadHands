@@ -90,10 +90,10 @@ def test_settings_handles_sensitive_data():
     assert settings.llm_api_key.get_secret_value() == 'test-key'
 
 
-def test_settings_preserve_sdk_settings_values():
+def test_settings_preserve_agent_settings():
     settings = Settings(
-        llm_api_key='test-key',
-        sdk_settings_values={
+        agent_settings={
+            'llm.api_key': 'test-key',
             'verification.critic_enabled': True,
             'verification.critic_mode': 'all_actions',
             'llm.litellm_extra_body': {'metadata': {'tier': 'pro'}},
@@ -101,16 +101,17 @@ def test_settings_preserve_sdk_settings_values():
     )
 
     assert settings.llm_api_key.get_secret_value() == 'test-key'
-    assert settings.sdk_settings_values == {
+    assert settings.agent_settings == {
+        'llm.api_key': 'test-key',
         'verification.critic_enabled': True,
         'verification.critic_mode': 'all_actions',
         'llm.litellm_extra_body': {'metadata': {'tier': 'pro'}},
     }
 
 
-def test_settings_to_agent_settings_uses_sdk_values():
+def test_settings_to_agent_settings_uses_agent_vals():
     settings = Settings(
-        sdk_settings_values={
+        agent_settings={
             'llm.model': 'sdk-model',
             'llm.base_url': 'https://sdk.example.com',
             'llm.litellm_extra_body': {'metadata': {'tier': 'enterprise'}},
