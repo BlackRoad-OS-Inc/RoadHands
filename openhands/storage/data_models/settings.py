@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from enum import Enum
 from pathlib import PurePosixPath
 from typing import Annotated
 
@@ -21,6 +22,20 @@ from openhands.core.config.utils import load_openhands_config
 from openhands.storage.data_models.secrets import Secrets
 
 MARKETPLACE_PATH_PATTERN = re.compile(r'^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_.-]+)*\.json$')
+
+
+class SandboxGroupingStrategy(str, Enum):
+    """Strategy for grouping conversations within sandboxes."""
+
+    NO_GROUPING = 'NO_GROUPING'  # Default - each conversation gets its own sandbox
+    GROUP_BY_NEWEST = 'GROUP_BY_NEWEST'  # Add to the most recently created sandbox
+    LEAST_RECENTLY_USED = (
+        'LEAST_RECENTLY_USED'  # Add to the least recently used sandbox
+    )
+    FEWEST_CONVERSATIONS = (
+        'FEWEST_CONVERSATIONS'  # Add to sandbox with fewest conversations
+    )
+    ADD_TO_ANY = 'ADD_TO_ANY'  # Add to any available sandbox (first found)
 
 
 class Settings(BaseModel):
@@ -58,10 +73,10 @@ class Settings(BaseModel):
     git_user_name: str | None = None
     git_user_email: str | None = None
     v1_enabled: bool = True
-    # Path to the marketplace JSON file for public skills loading
-    # None = Load all skills without marketplace filtering
-    # String value = Use that marketplace path (e.g., 'marketplaces/default.json')
     marketplace_path: str | None = None
+    sandbox_grouping_strategy: SandboxGroupingStrategy = (
+        SandboxGroupingStrategy.NO_GROUPING
+    )
 
     model_config = ConfigDict(
         validate_assignment=True,

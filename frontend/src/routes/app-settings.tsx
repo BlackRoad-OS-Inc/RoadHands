@@ -8,6 +8,7 @@ import { DEFAULT_SETTINGS } from "#/services/settings";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { SettingsSwitch } from "#/components/features/settings/settings-switch";
 import { SettingsInput } from "#/components/features/settings/settings-input";
+import { SettingsDropdownInput } from "#/components/features/settings/settings-dropdown-input";
 import { I18nKey } from "#/i18n/declaration";
 import { LanguageInput } from "#/components/features/settings/app-settings/language-input";
 import { handleCaptureConsent } from "#/utils/handle-capture-consent";
@@ -19,10 +20,20 @@ import { retrieveAxiosErrorMessage } from "#/utils/retrieve-axios-error-message"
 import { AppSettingsInputsSkeleton } from "#/components/features/settings/app-settings/app-settings-inputs-skeleton";
 import { useConfig } from "#/hooks/query/use-config";
 import {
-  parseMaxBudgetPerTask,
-  parseMarketplacePath,
   isValidMarketplacePath,
+  parseMarketplacePath,
+  parseMaxBudgetPerTask,
 } from "#/utils/settings-utils";
+import {
+  SandboxGroupingStrategy,
+  SandboxGroupingStrategyOptions,
+} from "#/types/settings";
+import { ENABLE_SANDBOX_GROUPING } from "#/utils/feature-flags";
+import { createPermissionGuard } from "#/utils/org/permission-guard";
+
+export const clientLoader = createPermissionGuard(
+  "manage_application_settings",
+);
 
 type ChangedField =
   | "language"
@@ -30,6 +41,7 @@ type ChangedField =
   | "soundNotifications"
   | "proactiveConversations"
   | "solvabilityAnalysis"
+  | "sandboxGroupingStrategy"
   | "maxBudgetPerTask"
   | "gitUserName"
   | "gitUserEmail"
@@ -46,6 +58,8 @@ function AppSettingsScreen() {
   const [changedFields, setChangedFields] = React.useState<Set<ChangedField>>(
     new Set<ChangedField>(),
   );
+  const [selectedSandboxGroupingStrategy, setSelectedSandboxGroupingStrategy] =
+    React.useState<SandboxGroupingStrategy | null>(null);
   const [marketplacePathError, setMarketplacePathError] = React.useState<
     string | null
   >(null);
@@ -84,6 +98,11 @@ function AppSettingsScreen() {
     const enableSolvabilityAnalysis =
       formData.get("enable-solvability-analysis-switch")?.toString() === "on";
 
+    const sandboxGroupingStrategy =
+      selectedSandboxGroupingStrategy ||
+      settings?.sandbox_grouping_strategy ||
+      DEFAULT_SETTINGS.sandbox_grouping_strategy;
+
     const maxBudgetPerTaskValue = formData
       .get("max-budget-per-task-input")
       ?.toString();
@@ -114,6 +133,7 @@ function AppSettingsScreen() {
         enable_sound_notifications: enableSoundNotifications,
         enable_proactive_conversation_starters: enableProactiveConversations,
         enable_solvability_analysis: enableSolvabilityAnalysis,
+        sandbox_grouping_strategy: sandboxGroupingStrategy,
         max_budget_per_task: maxBudgetPerTask,
         git_user_name: gitUserName,
         git_user_email: gitUserEmail,
@@ -123,6 +143,8 @@ function AppSettingsScreen() {
         onSuccess: () => {
           handleCaptureConsent(posthog, enableAnalytics);
           setChangedFields(new Set<ChangedField>());
+          setSelectedSandboxGroupingStrategy(null);
+          setMarketplacePathError(null);
           displaySuccessToast(t(I18nKey.SETTINGS$SAVED));
         },
         onError: (error) => {
@@ -175,6 +197,15 @@ function AppSettingsScreen() {
     );
   };
 
+  const handleSandboxGroupingStrategyChange = (key: React.Key | null) => {
+    const newStrategy = key?.toString() as SandboxGroupingStrategy | undefined;
+    setSelectedSandboxGroupingStrategy(newStrategy || null);
+    const currentStrategy =
+      settings?.sandbox_grouping_strategy ||
+      DEFAULT_SETTINGS.sandbox_grouping_strategy;
+    setFieldChanged("sandboxGroupingStrategy", newStrategy !== currentStrategy);
+  };
+
   const checkIfMaxBudgetPerTaskHasChanged = (value: string) => {
     const newValue = parseMaxBudgetPerTask(value);
     const currentValue = settings?.max_budget_per_task;
@@ -205,9 +236,7 @@ function AppSettingsScreen() {
   };
 
   const formIsClean = changedFields.size === 0;
-
   const hasValidationErrors = !!marketplacePathError;
-
   const shouldBeLoading = !settings || isLoading || isPending;
 
   return (
@@ -267,6 +296,26 @@ function AppSettingsScreen() {
             </SettingsSwitch>
           )}
 
+          {ENABLE_SANDBOX_GROUPING() && (
+            <SettingsDropdownInput
+              testId="sandbox-grouping-strategy-input"
+              name="sandbox-grouping-strategy-input"
+              label={t(I18nKey.SETTINGS$SANDBOX_GROUPING_STRATEGY)}
+              items={Object.keys(SandboxGroupingStrategyOptions).map((key) => ({
+                key,
+                label: t(`SETTINGS$SANDBOX_GROUPING_${key}` as I18nKey),
+              }))}
+              selectedKey={
+                selectedSandboxGroupingStrategy ||
+                settings.sandbox_grouping_strategy ||
+                DEFAULT_SETTINGS.sandbox_grouping_strategy
+              }
+              isClearable={false}
+              onSelectionChange={handleSandboxGroupingStrategyChange}
+              wrapperClassName="w-full max-w-[680px]"
+            />
+          )}
+
           {!settings?.v1_enabled && (
             <SettingsInput
               testId="max-budget-per-task-input"
@@ -278,7 +327,7 @@ function AppSettingsScreen() {
               placeholder={t(I18nKey.SETTINGS$MAXIMUM_BUDGET_USD)}
               min={1}
               step={1}
-              className="w-full max-w-[680px]" // Match the width of the language field
+              className="w-full max-w-[680px]"
             />
           )}
 
