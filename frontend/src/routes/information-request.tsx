@@ -10,7 +10,7 @@ import {
   RequestType,
 } from "#/components/features/onboarding/information-request-form";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
-import CloudIcon from "#/icons/cloud.svg?react";
+import CloudIcon from "#/icons/cloud-minimal.svg?react";
 import StackedIcon from "#/icons/stacked.svg?react";
 
 interface FeatureListProps {

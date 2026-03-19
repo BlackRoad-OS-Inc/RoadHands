@@ -6,7 +6,7 @@ import { Card } from "#/ui/card";
 import { Text } from "#/ui/typography";
 import { FormInput } from "./form-input";
 import OpenHandsLogoWhite from "#/assets/branding/openhands-logo-white.svg?react";
-import CloudIcon from "#/icons/cloud.svg?react";
+import CloudIcon from "#/icons/cloud-minimal.svg?react";
 import StackedIcon from "#/icons/stacked.svg?react";
 
 export type RequestType = "saas" | "self-hosted";
@@ -143,7 +143,11 @@ export function InformationRequestForm({
           />
 
           {/* Buttons */}
-          <div className="flex gap-4 mt-4" role="group" aria-label="Form actions">
+          <div
+            className="flex gap-4 mt-4"
+            role="group"
+            aria-label="Form actions"
+          >
             <button
               type="button"
               onClick={onBack}

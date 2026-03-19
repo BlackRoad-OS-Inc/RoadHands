@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router";
-import { InformationRequestForm } from "#/components/features/onboarding/information-request-form";
+import { InformationRequestForm, RequestType } from "#/components/features/onboarding/information-request-form";
 
 // Mock useNavigate
 const mockNavigate = vi.fn();
@@ -16,7 +16,7 @@ vi.mock("react-router", async () => {
 
 describe("InformationRequestForm", () => {
   const defaultProps = {
-    requestType: "saas" as const,
+    requestType: "saas" as RequestType,
     onBack: vi.fn(),
   };
 
