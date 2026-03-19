@@ -319,8 +319,72 @@ describe("LaunchRoute", () => {
     });
   });
 
+  describe("Trust Checkbox", () => {
+    it("should display trust checkbox unchecked by default", () => {
+      const plugins = [{ source: "github:owner/repo" }];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      const checkbox = screen.getByTestId("trust-checkbox");
+      expect(checkbox).toBeInTheDocument();
+      expect(checkbox).not.toBeChecked();
+    });
+
+    it("should display trust checkbox with associated label", () => {
+      const plugins = [{ source: "github:owner/repo" }];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      // Check that the checkbox has a label associated with it
+      const checkbox = screen.getByTestId("trust-checkbox");
+      const label = document.querySelector('label[for="trust-checkbox"]');
+      expect(label).toBeInTheDocument();
+    });
+
+    it("should have trust checkbox label that references the translation key", () => {
+      const plugins = [
+        { source: "github:owner/repo1" },
+        { source: "github:owner/repo2" },
+      ];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      // In test environment, the translation key is shown
+      const label = document.querySelector('label[for="trust-checkbox"]');
+      expect(label).toBeInTheDocument();
+      expect(label?.textContent).toContain("LAUNCH$TRUST_SKILL_CHECKBOX");
+    });
+
+    it("should disable start button when trust checkbox is unchecked", () => {
+      const plugins = [{ source: "github:owner/repo" }];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      const button = screen.getByTestId("start-conversation-button");
+      expect(button).toBeDisabled();
+    });
+
+    it("should enable start button when trust checkbox is checked", async () => {
+      const user = userEvent.setup();
+      const plugins = [{ source: "github:owner/repo" }];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      const checkbox = screen.getByTestId("trust-checkbox");
+      await user.click(checkbox);
+
+      const button = screen.getByTestId("start-conversation-button");
+      expect(button).not.toBeDisabled();
+    });
+  });
+
   describe("Conversation Creation", () => {
-    it("should call createConversation with plugins when start button clicked", async () => {
+    it("should call createConversation with plugins when start button clicked after checking trust", async () => {
       const user = userEvent.setup();
       const plugins = [
         { source: "github:owner/repo", parameters: { apiKey: "test" } },
@@ -329,6 +393,8 @@ describe("LaunchRoute", () => {
 
       renderLaunchRoute(`?plugins=${encoded}`);
 
+      // First check the trust checkbox
+      await user.click(screen.getByTestId("trust-checkbox"));
       await user.click(screen.getByTestId("start-conversation-button"));
 
       await waitFor(() => {
@@ -354,6 +420,8 @@ describe("LaunchRoute", () => {
 
       renderLaunchRoute(`?plugins=${encoded}&message=${encodeURIComponent(message)}`);
 
+      // First check the trust checkbox
+      await user.click(screen.getByTestId("trust-checkbox"));
       await user.click(screen.getByTestId("start-conversation-button"));
 
       await waitFor(() => {
@@ -380,11 +448,30 @@ describe("LaunchRoute", () => {
 
       renderLaunchRoute(`?plugins=${encoded}`);
 
+      // First check the trust checkbox
+      await user.click(screen.getByTestId("trust-checkbox"));
       await user.click(screen.getByTestId("start-conversation-button"));
 
       await waitFor(() => {
         expect(mockNavigate).toHaveBeenCalledWith("/conversations/new-conv-456");
       });
+    });
+
+    it("should not call createConversation when trust checkbox is not checked", async () => {
+      const user = userEvent.setup();
+      const plugins = [{ source: "github:owner/repo" }];
+      const encoded = btoa(JSON.stringify(plugins));
+
+      renderLaunchRoute(`?plugins=${encoded}`);
+
+      // Try to click without checking trust (button should be disabled)
+      const button = screen.getByTestId("start-conversation-button");
+      expect(button).toBeDisabled();
+      
+      // Even attempting to click shouldn't call the mutation
+      await user.click(button);
+      
+      expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
 
@@ -414,6 +501,8 @@ describe("LaunchRoute", () => {
 
       renderLaunchRoute(`?plugins=${encoded}`);
 
+      // First check the trust checkbox
+      await user.click(screen.getByTestId("trust-checkbox"));
       await user.click(screen.getByTestId("start-conversation-button"));
 
       await waitFor(() => {
@@ -431,6 +520,8 @@ describe("LaunchRoute", () => {
 
       renderLaunchRoute(`?plugins=${encoded}`);
 
+      // First check the trust checkbox
+      await user.click(screen.getByTestId("trust-checkbox"));
       await user.click(screen.getByTestId("start-conversation-button"));
 
       await waitFor(() => {

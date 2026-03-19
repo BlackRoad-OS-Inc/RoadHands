@@ -42,6 +42,7 @@ export function PluginLaunchModal({
       return initial;
     },
   );
+  const [trustConfirmed, setTrustConfirmed] = React.useState(false);
 
   const pluginsWithParams = pluginConfigs.filter(
     (p) => p.parameters && Object.keys(p.parameters).length > 0,
@@ -104,6 +105,11 @@ export function PluginLaunchModal({
       return source.split("github.com/")[1]?.replace(".git", "") || source;
     }
     return source;
+  };
+
+  const getUniqueSources = (): string[] => {
+    const sources = pluginConfigs.map((plugin) => getPluginSourceInfo(plugin));
+    return [...new Set(sources)];
   };
 
   const handleStartConversation = () => {
@@ -305,19 +311,36 @@ export function PluginLaunchModal({
           )}
         </div>
 
-        <div className="flex w-full justify-end gap-2 pt-4 border-t border-tertiary">
-          <BrandButton
-            testId="start-conversation-button"
-            type="button"
-            variant="primary"
-            onClick={handleStartConversation}
-            isDisabled={isLoading}
-            className="px-4"
-          >
-            {isLoading
-              ? t(I18nKey.LAUNCH$STARTING)
-              : t(I18nKey.LAUNCH$START_CONVERSATION)}
-          </BrandButton>
+        <div className="pt-4 border-t border-tertiary">
+          <div className="flex items-start gap-3 mb-4">
+            <input
+              id="trust-checkbox"
+              data-testid="trust-checkbox"
+              type="checkbox"
+              checked={trustConfirmed}
+              onChange={(e) => setTrustConfirmed(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-tertiary bg-base-secondary accent-primary flex-shrink-0"
+            />
+            <label htmlFor="trust-checkbox" className="text-sm text-white">
+              {t(I18nKey.LAUNCH$TRUST_SKILL_CHECKBOX, {
+                sources: getUniqueSources().join(", "),
+              })}
+            </label>
+          </div>
+          <div className="flex w-full justify-end gap-2">
+            <BrandButton
+              testId="start-conversation-button"
+              type="button"
+              variant="primary"
+              onClick={handleStartConversation}
+              isDisabled={isLoading || !trustConfirmed}
+              className="px-4"
+            >
+              {isLoading
+                ? t(I18nKey.LAUNCH$STARTING)
+                : t(I18nKey.LAUNCH$START_CONVERSATION)}
+            </BrandButton>
+          </div>
         </div>
       </div>
     </ModalBackdrop>

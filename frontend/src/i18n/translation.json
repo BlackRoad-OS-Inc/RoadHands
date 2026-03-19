@@ -16595,6 +16595,22 @@
     "de": "path:",
     "uk": "path:"
   },
+  "LAUNCH$TRUST_SKILL_CHECKBOX": {
+    "en": "I trust this skill from {{sources}} with the agent secrets defined in my account.",
+    "ja": "私は{{sources}}からのこのスキルを、アカウントに定義されたエージェントシークレットとともに信頼します。",
+    "zh-CN": "我信任来自 {{sources}} 的此技能，并允许其使用我账户中定义的代理密钥。",
+    "zh-TW": "我信任來自 {{sources}} 的此技能，並允許其使用我帳戶中定義的代理密鑰。",
+    "ko-KR": "{{sources}}의 이 스킬을 내 계정에 정의된 에이전트 비밀과 함께 신뢰합니다.",
+    "no": "Jeg stoler på denne ferdigheten fra {{sources}} med agenthemmelighetene definert i kontoen min.",
+    "it": "Mi fido di questa skill da {{sources}} con i segreti dell'agente definiti nel mio account.",
+    "pt": "Eu confio nesta habilidade de {{sources}} com os segredos do agente definidos em minha conta.",
+    "es": "Confío en esta habilidad de {{sources}} con los secretos del agente definidos en mi cuenta.",
+    "ar": "أثق في هذه المهارة من {{sources}} مع أسرار الوكيل المحددة في حسابي.",
+    "fr": "Je fais confiance à cette compétence de {{sources}} avec les secrets d'agent définis dans mon compte.",
+    "tr": "{{sources}} kaynağından gelen bu beceriye hesabımda tanımlı ajan sırlarıyla güveniyorum.",
+    "de": "Ich vertraue dieser Fähigkeit von {{sources}} mit den in meinem Konto definierten Agenten-Geheimnissen.",
+    "uk": "Я довіряю цій навичці з {{sources}} із секретами агента, визначеними в моєму обліковому записі."
+  },
   "ONBOARDING$STEP1_TITLE": {
     "en": "What's your role?",
     "ja": "あなたの役割は？",
