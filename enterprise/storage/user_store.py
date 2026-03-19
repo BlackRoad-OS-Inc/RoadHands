@@ -7,6 +7,7 @@ from uuid import UUID
 
 from server.auth.token_manager import TokenManager
 from server.constants import (
+    DEFAULT_V1_ENABLED,
     LITE_LLM_API_URL,
     ORG_SETTINGS_VERSION,
     PERSONAL_WORKSPACE_VERSION_TO_MODEL,
@@ -241,6 +242,10 @@ class UserStore:
                 if hasattr(org, key):
                     setattr(org, key, value)
 
+            # Apply DEFAULT_V1_ENABLED for migrated orgs if v1_enabled was not set
+            if org.v1_enabled is None:
+                org.v1_enabled = DEFAULT_V1_ENABLED
+
             user_kwargs = UserStore.get_kwargs_from_user_settings(
                 decrypted_user_settings
             )
@@ -295,29 +300,28 @@ class UserStore:
                 extra={'user_id': user_id},
             )
 
+            user_uuid = uuid.UUID(user_id)
+
             # need to migrate conversation metadata
             await session.execute(
                 text("""
                     INSERT INTO conversation_metadata_saas (conversation_id, user_id, org_id)
                     SELECT
                         conversation_id,
-                        :user_id,
-                        :user_id
+                        :user_uuid,
+                        :user_uuid
                     FROM conversation_metadata
-                    WHERE user_id = :user_id
+                    WHERE user_id = :user_id_text
                 """),
-                {'user_id': user_id},
+                {'user_uuid': user_uuid, 'user_id_text': user_id},
             )
-
-            # Update org_id for tables that had org_id added
-            user_uuid = uuid.UUID(user_id)
 
             # Update stripe_customers
             await session.execute(
                 text(
                     'UPDATE stripe_customers SET org_id = :org_id WHERE keycloak_user_id = :user_id'
                 ),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             # Update slack_users
@@ -325,7 +329,7 @@ class UserStore:
                 text(
                     'UPDATE slack_users SET org_id = :org_id WHERE keycloak_user_id = :user_id'
                 ),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             # Update slack_conversation
@@ -333,13 +337,13 @@ class UserStore:
                 text(
                     'UPDATE slack_conversation SET org_id = :org_id WHERE keycloak_user_id = :user_id'
                 ),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             # Update api_keys
             await session.execute(
                 text('UPDATE api_keys SET org_id = :org_id WHERE user_id = :user_id'),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             # Update custom_secrets
@@ -347,7 +351,7 @@ class UserStore:
                 text(
                     'UPDATE custom_secrets SET org_id = :org_id WHERE keycloak_user_id = :user_id'
                 ),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             # Update billing_sessions
@@ -355,7 +359,7 @@ class UserStore:
                 text(
                     'UPDATE billing_sessions SET org_id = :org_id WHERE user_id = :user_id'
                 ),
-                {'org_id': user_uuid, 'user_id': user_uuid},
+                {'org_id': user_uuid, 'user_id': user_id},
             )
 
             await session.commit()
@@ -892,6 +896,8 @@ class UserStore:
         default_settings = Settings(
             language='en', enable_proactive_conversation_starters=True
         )
+
+        default_settings.v1_enabled = DEFAULT_V1_ENABLED
 
         from storage.lite_llm_manager import LiteLlmManager
 
