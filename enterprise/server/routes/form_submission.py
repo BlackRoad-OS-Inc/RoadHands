@@ -11,7 +11,6 @@ from uuid import UUID, uuid4
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, EmailStr, Field, ValidationError
 from server.auth.saas_user_auth import SaasUserAuth
-from server.rate_limit import create_redis_rate_limiter
 from storage.database import a_session_maker
 from storage.form_submission import FormSubmission
 
@@ -19,9 +18,6 @@ from openhands.core.logger import openhands_logger as logger
 from openhands.server.user_auth.user_auth import UserAuth
 
 router = APIRouter(prefix='/api/forms', tags=['forms'])
-
-# Rate limiting: 5 submissions per 5 minutes per IP
-_form_rate_limiter = create_redis_rate_limiter('5/5minute')
 
 
 class FormSubmissionRequest(BaseModel):
@@ -99,10 +95,6 @@ async def submit_form(
     - email: contact email
     - message: inquiry message
     """
-    # Rate limit by IP (unauthenticated endpoint)
-    client_ip = request.client.host if request.client else 'unknown'
-    await _form_rate_limiter.hit('form_submission', client_ip)
-
     # Validate form type
     valid_form_types = {'enterprise_lead'}
     if submission.form_type not in valid_form_types:
