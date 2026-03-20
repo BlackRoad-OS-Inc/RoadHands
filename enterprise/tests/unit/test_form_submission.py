@@ -10,7 +10,7 @@ from server.auth.saas_user_auth import SaasUserAuth
 from server.routes.form_submission import (
     FormSubmissionRequest,
     FormSubmissionResponse,
-    _validate_enterprise_lead_answers,
+    _validate_and_sanitize_enterprise_lead_answers,
     submit_form,
 )
 from sqlalchemy import select
@@ -64,7 +64,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Interested in saas.',
         }
         # Should not raise
-        _validate_enterprise_lead_answers(answers)
+        _validate_and_sanitize_enterprise_lead_answers(answers)
 
     def test_valid_self_hosted_request_type(self):
         """Test validation passes for self-hosted request type."""
@@ -76,7 +76,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Need self-hosted solution.',
         }
         # Should not raise
-        _validate_enterprise_lead_answers(answers)
+        _validate_and_sanitize_enterprise_lead_answers(answers)
 
     def test_invalid_request_type(self):
         """Test validation fails for invalid request type."""
@@ -88,7 +88,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Test message.',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
         assert 'Invalid enterprise lead form answers' in excinfo.value.detail
 
@@ -101,7 +101,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Test message.',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
 
     def test_empty_name(self):
@@ -114,7 +114,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Test message.',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
 
     def test_missing_email(self):
@@ -126,7 +126,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Test message.',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
 
     def test_missing_company(self):
@@ -138,7 +138,7 @@ class TestEnterpriseLeadValidation:
             'message': 'Test message.',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
 
     def test_missing_message(self):
@@ -150,7 +150,7 @@ class TestEnterpriseLeadValidation:
             'email': 'john@acme.com',
         }
         with pytest.raises(HTTPException) as excinfo:
-            _validate_enterprise_lead_answers(answers)
+            _validate_and_sanitize_enterprise_lead_answers(answers)
         assert excinfo.value.status_code == 400
 
 
@@ -262,6 +262,59 @@ class TestSubmitForm:
             submission = db_result.scalars().first()
             assert submission is not None
             assert submission.answers['request_type'] == 'self-hosted'
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_enforced(
+        self, valid_enterprise_lead_data, mock_request, async_session_maker
+    ):
+        """Test that rate limiting is enforced and returns 429."""
+        from server.rate_limit import RateLimitException, RateLimitResult
+
+        submission_request = FormSubmissionRequest(**valid_enterprise_lead_data)
+
+        # Mock rate limiter to raise RateLimitException (simulating limit hit)
+        rate_limit_result = RateLimitResult(
+            description='5 per 1 hour',
+            remaining=0,
+            reset_time=3600,
+            retry_after=3600,
+        )
+
+        with (
+            patch('server.routes.form_submission.a_session_maker', async_session_maker),
+            patch(
+                'server.routes.form_submission.form_submit_rate_limiter.hit',
+                side_effect=RateLimitException(rate_limit_result),
+            ),
+        ):
+            with pytest.raises(RateLimitException) as excinfo:
+                await submit_form(mock_request, submission_request)
+
+            assert excinfo.value.status_code == 429
+            assert '5 per 1 hour' in excinfo.value.detail
+
+    @pytest.mark.asyncio
+    async def test_invalid_user_id_returns_500(
+        self, valid_enterprise_lead_data, async_session_maker
+    ):
+        """Test that malformed user_id from auth returns 500 (fail-fast behavior)."""
+        submission_request = FormSubmissionRequest(**valid_enterprise_lead_data)
+
+        # Create mock request with invalid UUID in user_auth
+        request = MagicMock()
+        mock_user_auth = MagicMock(spec=SaasUserAuth)
+        mock_user_auth.user_id = 'not-a-valid-uuid'  # Invalid UUID format
+        request.state.user_auth = mock_user_auth
+
+        with patch(
+            'server.routes.form_submission.a_session_maker', async_session_maker
+        ):
+            with pytest.raises(HTTPException) as excinfo:
+                await submit_form(request, submission_request)
+
+            # Should return 500 (not 400) to surface auth system bug
+            assert excinfo.value.status_code == 500
+            assert 'Internal authentication error' in excinfo.value.detail
 
 
 class TestFormSubmissionRequest:

@@ -110,7 +110,9 @@ def _get_user_id_from_request(request: Request) -> UUID | None:
     return None
 
 
-def _validate_and_sanitize_enterprise_lead_answers(answers: dict[str, Any]) -> dict[str, Any]:
+def _validate_and_sanitize_enterprise_lead_answers(
+    answers: dict[str, Any],
+) -> dict[str, Any]:
     """Validate and sanitize answers for enterprise_lead form type.
 
     Returns:
@@ -173,7 +175,7 @@ async def submit_form(
     new_submission = FormSubmission(
         id=submission_id,
         form_type=submission.form_type,
-        answers= _validate_and_sanitize_enterprise_lead_answers(submission.answers),
+        answers=_validate_and_sanitize_enterprise_lead_answers(submission.answers),
         status='pending',
         user_id=user_id,
     )
