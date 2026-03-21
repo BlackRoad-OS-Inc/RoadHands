@@ -14,7 +14,7 @@ RUN apt-get update && \
     apt-get install -y nodejs && \
     apt-get install -y jq gettext && \
     # Apply security updates for packages with available fixes
-    apt-get upgrade -y \
+    apt-get install --only-upgrade -y \
         libc-bin \
         libc6 \
         libgnutls30 \
