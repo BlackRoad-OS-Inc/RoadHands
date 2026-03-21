@@ -345,6 +345,9 @@ describe("PluginLaunchModal", () => {
       await user.clear(input);
       await user.type(input, "updated-key");
 
+      // Check the trust checkbox first
+      await user.click(screen.getByTestId("trust-checkbox"));
+
       // Click start
       await user.click(screen.getByTestId("start-conversation-button"));
 
@@ -363,6 +366,9 @@ describe("PluginLaunchModal", () => {
         [{ source: "github:owner/repo" }],
         { message: "/city-weather:now Tokyo" },
       );
+
+      // Check the trust checkbox first
+      await user.click(screen.getByTestId("trust-checkbox"));
 
       await user.click(screen.getByTestId("start-conversation-button"));
 

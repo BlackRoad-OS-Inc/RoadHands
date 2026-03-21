@@ -467,10 +467,10 @@ describe("LaunchRoute", () => {
       // Try to click without checking trust (button should be disabled)
       const button = screen.getByTestId("start-conversation-button");
       expect(button).toBeDisabled();
-      
+
       // Even attempting to click shouldn't call the mutation
       await user.click(button);
-      
+
       expect(mockMutateAsync).not.toHaveBeenCalled();
     });
   });
