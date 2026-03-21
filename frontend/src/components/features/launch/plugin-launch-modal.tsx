@@ -1,12 +1,13 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import { IoClose, IoChevronDown, IoChevronForward } from "react-icons/io5";
+import { IoClose } from "react-icons/io5";
 import { ModalBackdrop } from "#/components/shared/modals/modal-backdrop";
 import { BrandButton } from "#/components/features/settings/brand-button";
 import { I18nKey } from "#/i18n/declaration";
 import { PluginSpec } from "#/api/conversation-service/v1-conversation-service.types";
 import { Typography } from "#/ui/typography";
 import { cn } from "#/utils/utils";
+import { PluginLaunchPluginSection } from "./plugin-launch-plugin-section";
 
 interface PluginLaunchModalProps {
   plugins: PluginSpec[];
@@ -116,132 +117,6 @@ export function PluginLaunchModal({
     onStartConversation(pluginConfigs, message);
   };
 
-  const renderParameterInput = (
-    pluginIndex: number,
-    paramKey: string,
-    paramValue: unknown,
-  ) => {
-    const inputId = `plugin-${pluginIndex}-param-${paramKey}`;
-    const inputClasses =
-      "rounded-md border border-tertiary bg-base-secondary px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary";
-
-    if (typeof paramValue === "boolean") {
-      return (
-        <div key={paramKey} className="flex items-center gap-3 py-2">
-          <input
-            id={inputId}
-            data-testid={inputId}
-            type="checkbox"
-            checked={paramValue}
-            onChange={(e) =>
-              updateParameter(pluginIndex, paramKey, e.target.checked)
-            }
-            className="h-4 w-4 rounded border-tertiary bg-base-secondary accent-primary"
-          />
-          <label htmlFor={inputId} className="text-sm">
-            {paramKey}
-          </label>
-        </div>
-      );
-    }
-
-    if (typeof paramValue === "number") {
-      return (
-        <div key={paramKey} className="flex flex-col gap-1 py-2">
-          <label htmlFor={inputId} className="text-sm text-white">
-            {paramKey}
-          </label>
-          <input
-            id={inputId}
-            data-testid={inputId}
-            type="number"
-            value={paramValue}
-            onChange={(e) =>
-              updateParameter(
-                pluginIndex,
-                paramKey,
-                parseFloat(e.target.value) || 0,
-              )
-            }
-            className={inputClasses}
-          />
-        </div>
-      );
-    }
-
-    // Default: string input
-    return (
-      <div key={paramKey} className="flex flex-col gap-1 py-2">
-        <label htmlFor={inputId} className="text-sm text-white">
-          {paramKey}
-        </label>
-        <input
-          id={inputId}
-          data-testid={inputId}
-          type="text"
-          value={String(paramValue ?? "")}
-          onChange={(e) =>
-            updateParameter(pluginIndex, paramKey, e.target.value)
-          }
-          className={inputClasses}
-        />
-      </div>
-    );
-  };
-
-  const renderPluginSection = (plugin: PluginSpec, originalIndex: number) => {
-    const isExpanded = expandedSections[originalIndex];
-    const hasParams =
-      plugin.parameters && Object.keys(plugin.parameters).length > 0;
-
-    if (!hasParams) {
-      return null;
-    }
-
-    return (
-      <div
-        key={`plugin-${originalIndex}`}
-        className="rounded-lg border border-tertiary bg-tertiary"
-      >
-        <button
-          type="button"
-          onClick={() => toggleSection(originalIndex)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-base-tertiary rounded-t-lg"
-          data-testid={`plugin-section-${originalIndex}`}
-        >
-          <Typography.Text className="font-medium">
-            {getPluginDisplayName(plugin)}
-          </Typography.Text>
-          {isExpanded ? (
-            <IoChevronDown className="h-5 w-5 text-white" />
-          ) : (
-            <IoChevronForward className="h-5 w-5 text-white" />
-          )}
-        </button>
-
-        {isExpanded && (
-          <div className="border-t border-tertiary px-4 py-3">
-            {plugin.ref && (
-              <div className="mb-2 text-xs text-white">
-                {t(I18nKey.LAUNCH$PLUGIN_REF)} {plugin.ref}
-              </div>
-            )}
-            {plugin.repo_path && (
-              <div className="mb-2 text-xs text-white">
-                {t(I18nKey.LAUNCH$PLUGIN_PATH)} {plugin.repo_path}
-              </div>
-            )}
-            <div className="space-y-1">
-              {Object.entries(plugin.parameters || {}).map(([key, value]) =>
-                renderParameterInput(originalIndex, key, value),
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
-
   const modalTitle =
     pluginConfigs.length === 1
       ? getPluginDisplayName(pluginConfigs[0])
@@ -260,7 +135,7 @@ export function PluginLaunchModal({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md p-1 text-white hover:text-secondary hover:bg-tertiary"
+            className="rounded-md p-1 text-white hover:bg-tertiary cursor-pointer"
             aria-label="Close"
             data-testid="close-button"
           >
@@ -273,9 +148,17 @@ export function PluginLaunchModal({
         <div className="flex-1 overflow-y-auto custom-scrollbar">
           {pluginsWithParams.length > 0 && (
             <div className="space-y-3">
-              {pluginConfigs.map((plugin, index) =>
-                renderPluginSection(plugin, index),
-              )}
+              {pluginConfigs.map((plugin, index) => (
+                <PluginLaunchPluginSection
+                  key={`plugin-${index}`}
+                  plugin={plugin}
+                  originalIndex={index}
+                  isExpanded={!!expandedSections[index]}
+                  onToggle={() => toggleSection(index)}
+                  getPluginDisplayName={getPluginDisplayName}
+                  onParameterChange={updateParameter}
+                />
+              ))}
             </div>
           )}
 
@@ -319,15 +202,16 @@ export function PluginLaunchModal({
               type="checkbox"
               checked={trustConfirmed}
               onChange={(e) => setTrustConfirmed(e.target.checked)}
-              className="mt-1 h-4 w-4 rounded border-tertiary bg-base-secondary accent-primary flex-shrink-0"
+              className="mt-1 h-4 w-4 flex-shrink-0"
             />
             <label htmlFor="trust-checkbox" className="text-sm text-white">
               {t(I18nKey.LAUNCH$TRUST_SKILL_CHECKBOX, {
                 sources: getUniqueSources().join(", "),
+                interpolation: { escapeValue: false },
               })}
             </label>
           </div>
-          <div className="flex w-full justify-end gap-2">
+          <div className="flex w-full justify-end mt-8">
             <BrandButton
               testId="start-conversation-button"
               type="button"
